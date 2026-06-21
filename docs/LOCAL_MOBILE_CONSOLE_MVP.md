@@ -17,6 +17,29 @@ The Web App owns the UI and interaction model.
 
 The core repo `jojojen/aka_no_claw` owns the local command bridge and existing command behavior.
 
+## Feasibility Review Notes
+
+This MVP is feasible, but the implementation boundary must stay strict:
+
+- `aka_no_claw_web` should be a frontend/mobile-console repo.
+- `aka_no_claw` should provide the local command bridge described in `jojojen/aka_no_claw#30`.
+- The Web App must not import or duplicate OpenClaw internal Python handlers.
+- The Web App must not create a second backend command implementation that drifts from OpenClaw.
+
+Observed backend readiness:
+
+- Text translation is already reachable in `aka_no_claw` through the existing `/zh` handler.
+- Deep product research is already reachable in `aka_no_claw` through the existing `/research` handler, but it can be slow and must be treated as a long-running command.
+- Reputation snapshot exists in `aka_no_claw` / `reputation_snapshot`, but the Web App should only mark seller snapshot as fully supported after `aka_no_claw#30` exposes a stable web-safe bridge path for it.
+- Image OCR / translation has reusable backend pieces, but the Telegram path also includes photo-menu, callback, and file-handling behavior. The Web App should only mark image translation as fully supported after the local command bridge exposes a stable multipart/file route.
+
+MVP fallback rule:
+
+```text
+If the command bridge returns status="unsupported", the UI must show the message normally in the conversation stream.
+Unsupported is an acceptable MVP result for image translation and seller snapshot until the backend bridge explicitly supports them.
+```
+
 ---
 
 ## Product Positioning
@@ -615,9 +638,23 @@ Suggested endpoint:
 POST /api/command
 ```
 
+`aka_no_claw_web` should treat this endpoint as an external local API owned by
+`aka_no_claw`. If a dev proxy is used during frontend development, it should only
+proxy requests to the OpenClaw bridge; it should not reimplement command routing.
+
 Text-only requests can use JSON.
 
-Image requests can use multipart upload.
+Image requests can use multipart upload only after the `aka_no_claw` bridge
+defines the concrete upload contract. Until then, image requests may return:
+
+```json
+{
+  "status": "unsupported",
+  "message": "圖片翻譯目前尚未由本地 command bridge 支援。",
+  "mode": "translation",
+  "submode": "image_translation"
+}
+```
 
 The semantic contract should remain equivalent to the examples below.
 
@@ -690,7 +727,8 @@ The semantic contract should remain equivalent to the examples below.
 ### Acceptance Criteria
 
 - [ ] Frontend can send text command requests.
-- [ ] Frontend can send image attachment requests.
+- [ ] Frontend can send image attachment requests if the bridge advertises image support.
+- [ ] Frontend renders structured `unsupported` responses for image translation and seller snapshot without treating them as crashes.
 - [ ] Backend returns structured JSON.
 - [ ] Backend errors are surfaced in UI.
 - [ ] The Web App does not import unstable internal handlers directly.
@@ -752,8 +790,9 @@ Tailwind CSS with custom jlpt-inspired tokens
 Backend:
 
 ```text
-FastAPI-compatible local server
-Pydantic-style response/request models
+Owned by jojojen/aka_no_claw, not by this repo:
+FastAPI-compatible or stdlib local server
+Pydantic-style or equivalent response/request models
 local command bridge to OpenClaw
 ```
 
@@ -846,6 +885,10 @@ ErrorMessage
 
 This is only a suggested structure. Agents may adjust if justified.
 
+Do not create the backend command bridge inside `aka_no_claw_web` unless the
+project ownership decision changes. The backend files below are shown only to
+describe the cross-repo contract location in `jojojen/aka_no_claw`.
+
 ```text
 aka_no_claw_web/
   README.md
@@ -873,10 +916,11 @@ aka_no_claw_web/
       styles/
         theme.ts
         index.css
-  backend/
-    app.py
-    models.py
+
+jojojen/aka_no_claw/
+  src/openclaw_adapter/
     command_bridge.py
+    command_bridge_models.py
 ```
 
 ---
