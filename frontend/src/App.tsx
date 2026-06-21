@@ -415,18 +415,21 @@ export default function App() {
     stopPollRef.current?.();
   }, []);
 
-  // Clear memory: delete the saved snapshot and wipe the visible stream. A save
-  // failure leaves the conversation cleared locally and notes it; the running
-  // app stays usable either way.
+  // Clear memory: DELETE the saved snapshot, then wipe the visible stream.
+  // The conversation is only cleared AFTER a confirmed successful delete so
+  // a backend failure doesn't silently desync runtime state from the server
+  // (a failed delete leaves the saved session intact; next reload would
+  // restore it, contradicting the blank screen the user just saw).
   const onClearMemory = useCallback(async () => {
-    saverRef.current?.cancel();
     setConfirmClear(false);
-    setNotice(null);
     const res = await clearSession();
-    setMessages([]);
     if (res.status !== "ok") {
-      setNotice("清除本機記憶失敗，但目前對話已清空。");
+      setNotice(`清除記憶失敗：${res.message ?? "未知錯誤"}`);
+      return;
     }
+    saverRef.current?.cancel();
+    setMessages([]);
+    setNotice(null);
   }, []);
 
   // Click a research follow-up button (摘要 / 看市價 / …): switch the view in
