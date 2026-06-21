@@ -280,9 +280,89 @@ Example request intent:
 
 Should be routed as a normal OpenClaw chat message.
 
+### Chat Mode Phasing
+
+Phase 1 for `jojojen/aka_no_claw#30` should be pure chat only.
+
+Phase 1 scope:
+
+```text
+User message
+→ selected chat backend
+→ model response
+→ response in the shared conversation stream
+```
+
+Phase 1 must support choosing the chat backend:
+
+```text
+local model
+cloud pickle / big-pickle
+```
+
+Phase 1 explicitly does not need:
+
+- OpenClaw tool calls
+- `/help` capability execution
+- automatic slash-command planning
+- command executor integration
+- multi-step agent workflows
+- background task orchestration
+
+Phase 1 success means the user can select each configured model backend and
+have a normal text conversation with it through the local Web UI.
+
+### Long-term Chat Agent Direction
+
+Chat Mode is not just casual model chat. It should become the operator-facing
+agent console for OpenClaw.
+
+The intended architecture is:
+
+```text
+User message
+→ selected chat backend
+→ OpenClaw chat agent / router
+→ command bridge
+→ existing OpenClaw commands and tools
+→ response in the shared conversation stream
+```
+
+The user should be able to choose the chat backend:
+
+```text
+local model
+cloud pickle / big-pickle
+```
+
+The selected backend should affect reasoning and language generation, not the
+available OpenClaw capabilities. Tool execution remains owned by `aka_no_claw`.
+
+Chat Mode should eventually let the model use the same capabilities listed by
+OpenClaw `/help`, including price lookup, research, snapshot, watchlist, SNS,
+quiz, translation, voice, knowledge, opportunity agent, and dynamic `/new`
+tools.
+
+Important boundary:
+
+- The model should not execute arbitrary shell commands directly.
+- The model should call a constrained OpenClaw command/tool executor.
+- The executor should expose only registered OpenClaw commands/capabilities.
+- Every tool call should be logged and rendered in the conversation stream.
+- Long-running commands should return progress / partial / final states.
+
+MVP implication:
+
+```text
+Chat Mode starts as selectable pure chat. Tool-capable agent routing is a later
+phase after the model selector and plain chat path work reliably.
+```
+
 ### UI Requirements
 
 - Chat Mode is the default mode.
+- Chat Mode should reserve UI space for a compact model selector.
+- The first model selector options should be `local` and `cloud pickle`.
 - Input placeholder should be general, for example:
 
 ```text
@@ -296,6 +376,9 @@ Should be routed as a normal OpenClaw chat message.
 
 - [ ] App opens in Chat Mode by default.
 - [ ] Text input sends normal chat messages.
+- [ ] Chat Mode can select `local` chat backend.
+- [ ] Chat Mode can select `cloud pickle` chat backend.
+- [ ] Phase 1 Chat Mode returns pure model chat responses without tool calls.
 - [ ] Chat responses appear in the shared conversation stream.
 - [ ] Switching away and back to Chat Mode does not clear the conversation.
 - [ ] Chat Mode does not wrap input with `/zh` or `/research`.
@@ -665,10 +748,21 @@ The semantic contract should remain equivalent to the examples below.
   "mode": "chat",
   "submode": null,
   "input": "最近有什麼值得注意的？",
+  "chat_backend": "local",
   "attachments": [],
   "source": "aka_no_claw_web"
 }
 ```
+
+`chat_backend` is part of Chat Mode Phase 1 and should support:
+
+```text
+local
+cloud_pickle
+```
+
+Future tool-capable chat may add `tool_policy`, but it is not required for
+Phase 1 pure chat.
 
 ### Text Translation Request
 
@@ -812,6 +906,7 @@ Minimum components:
 
 ```text
 ModeToggle
+ChatBackendSelector
 ConversationStream
 MessageBubble
 InputBar
@@ -828,6 +923,14 @@ ErrorMessage
 - inactive modes use muted gray background
 - always visible near top
 - should be easy to tap on phone
+
+### ChatBackendSelector
+
+- visible in Chat Mode
+- compact segmented control or dropdown
+- initial options: `local` and `cloud pickle`
+- changing backend must not clear the conversation
+- if a backend is unavailable, show a normal warning message in the stream
 
 ### ConversationStream
 
@@ -902,6 +1005,7 @@ aka_no_claw_web/
       App.tsx
       components/
         ModeToggle.tsx
+        ChatBackendSelector.tsx
         ConversationStream.tsx
         MessageBubble.tsx
         InputBar.tsx
@@ -929,7 +1033,10 @@ jojojen/aka_no_claw/
 
 - [ ] App starts in Chat Mode.
 - [ ] Top mode toggle includes Chat / 翻譯 / 投資研究.
+- [ ] Chat Mode reserves a backend selector for local model vs cloud pickle.
 - [ ] Chat Mode sends normal chat input.
+- [ ] Chat Mode request contract can pass the selected backend.
+- [ ] Phase 1 Chat Mode is pure chat only and does not call OpenClaw tools.
 - [ ] Translation Mode routes text as `/zh` behavior.
 - [ ] Translation Mode supports selecting a local image file for image translation.
 - [ ] Investment Mode shows `商品深入研究` and `賣家信譽快照`.
