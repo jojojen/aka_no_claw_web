@@ -70,12 +70,26 @@ export type AsyncStartResponse = {
 
 export type JobStatus = "running" | "done" | "error";
 
+// A follow-up button (龍蝦's /research views: 摘要 / 看市價 / 看賣家 …). The
+// callback_data is opaque to the UI — clicking re-invokes the bridge handler.
+export type ActionButton = {
+  label: string;
+  callback_data: string;
+};
+
 export type JobPollResponse = {
   job_status: JobStatus;
   progress?: string[];
   message?: string;
+  actions?: ActionButton[];
   error?: string | null;
   not_found?: boolean;
+};
+
+export type ActionResponse = {
+  status: ResponseStatus;
+  message: string;
+  actions?: ActionButton[];
 };
 
 // UI-side conversation model (shared across all modes).
@@ -88,4 +102,6 @@ export type Message = {
   modeLabel?: string;
   status?: ResponseStatus;
   generating?: boolean;
+  actions?: ActionButton[];
+  jobId?: string;
 };

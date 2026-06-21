@@ -1,4 +1,5 @@
 import type {
+  ActionResponse,
   AsyncStartResponse,
   CommandResponse,
   JobPollResponse,
@@ -10,6 +11,7 @@ const COMMAND_URL = "/api/command";
 const STREAM_URL = "/api/command/stream";
 const ASYNC_URL = "/api/command/async";
 const POLL_URL = "/api/command/poll";
+const ACTION_URL = "/api/command/action";
 
 // Blocking call — used for short non-chat commands (translation, research).
 export async function sendCommand(req: WebCommandRequest): Promise<CommandResponse> {
@@ -107,4 +109,22 @@ export async function startAsyncCommand(
 export async function pollJob(jobId: string): Promise<JobPollResponse> {
   const res = await fetch(`${POLL_URL}?job_id=${encodeURIComponent(jobId)}`);
   return (await res.json()) as JobPollResponse;
+}
+
+// Click a research follow-up button — re-invokes the bridge callback handler
+// (switch view) and returns the new text + buttons.
+export async function runAction(
+  jobId: string,
+  callbackData: string,
+): Promise<ActionResponse> {
+  const res = await fetch(ACTION_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ job_id: jobId, callback_data: callbackData }),
+  });
+  try {
+    return (await res.json()) as ActionResponse;
+  } catch {
+    return { status: "error", message: `HTTP ${res.status}` };
+  }
 }

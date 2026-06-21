@@ -6,7 +6,13 @@ import type {
   Submode,
   WebCommandRequest,
 } from "./types/command";
-import { pollJob, sendCommand, startAsyncCommand, streamCommand } from "./api/commandClient";
+import {
+  pollJob,
+  runAction,
+  sendCommand,
+  startAsyncCommand,
+  streamCommand,
+} from "./api/commandClient";
 import { ModeToggle } from "./components/ModeToggle";
 import { ChatBackendSelector } from "./components/ChatBackendSelector";
 import { InvestmentActionPanel } from "./components/InvestmentActionPanel";
@@ -202,6 +208,8 @@ export default function App() {
               text: snap.message || progressText,
               status: "ok",
               generating: false,
+              actions: snap.actions ?? [],
+              jobId,
             });
             return;
           }
@@ -292,6 +300,30 @@ export default function App() {
     stopPollRef.current?.();
   }, []);
 
+  // Click a research follow-up button (摘要 / 看市價 / …): switch the view in
+  // place, keeping the buttons so the user can flip between views.
+  const onAction = useCallback(
+    async (messageId: string, jobId: string, callbackData: string) => {
+      patch(messageId, { generating: true });
+      try {
+        const res = await runAction(jobId, callbackData);
+        patch(messageId, {
+          text: res.message,
+          status: res.status === "error" ? "error" : "ok",
+          actions: res.actions && res.actions.length ? res.actions : undefined,
+          generating: false,
+        });
+      } catch (err) {
+        patch(messageId, {
+          text: `動作執行失敗（${String(err)}）`,
+          status: "error",
+          generating: false,
+        });
+      }
+    },
+    [patch],
+  );
+
   return (
     <div className="mx-auto flex h-full max-w-content flex-col bg-surface">
       <header className="border-b border-muted px-4 py-3">
@@ -321,7 +353,7 @@ export default function App() {
         </div>
       )}
 
-      <ConversationStream messages={messages} />
+      <ConversationStream messages={messages} onAction={onAction} />
 
       <InputBar
         placeholder={placeholder}

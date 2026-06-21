@@ -3,9 +3,12 @@ import type { Message } from "../types/command";
 import { MessageBubble } from "./MessageBubble";
 import { ErrorMessage } from "./ErrorMessage";
 
-type Props = { messages: Message[] };
+type Props = {
+  messages: Message[];
+  onAction: (messageId: string, jobId: string, callbackData: string) => void;
+};
 
-export function ConversationStream({ messages }: Props) {
+export function ConversationStream({ messages, onAction }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -21,7 +24,7 @@ export function ConversationStream({ messages }: Props) {
         m.role === "assistant" && m.status === "error" ? (
           <ErrorMessage key={m.id} text={m.text} />
         ) : (
-          <MessageBubble key={m.id} message={m} />
+          <MessageBubble key={m.id} message={m} onAction={onAction} />
         ),
       )}
       <div ref={endRef} />
