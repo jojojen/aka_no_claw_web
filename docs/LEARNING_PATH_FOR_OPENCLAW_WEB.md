@@ -1,249 +1,222 @@
-# Learning Path for OpenClaw Web
+# Decision Guide for OpenClaw Web
 
 ## Purpose
 
-This note is the shortest useful learning path for keeping up with the current
-`aka_no_claw_web` and `aka_no_claw` architecture decisions.
+This note is for product and architecture decisions.
 
-It is not a general AI curriculum.
+It is not a coding guide.
 
-It is focused on the exact problems this system will hit:
-
-- long chat output
-- streaming and cancellation
-- local model vs cloud backend abstraction
-- mobile web UI responsiveness
-- future agent/tool execution boundaries
+The goal is to help the owner of the system make good decisions about scope,
+sequencing, risk, and technical direction without needing to care about
+implementation details.
 
 ---
 
-## First Principle
+## What Matters
 
-Do not start by learning a new framework.
-
-For this project, the main risks are not:
+For this project, the important decisions are not:
 
 - React vs Vue
-- FastAPI vs another Python web framework
+- FastAPI vs another Python framework
 - Python vs Rust
 
-The main risks are:
+Those are secondary.
 
-- blocking request/response design for long model output
-- poor cancellation handling
-- backend workers continuing after client disconnect
-- local/cloud model adapters drifting apart
-- adding tool-calling before plain chat is stable
+The primary decisions are:
 
-So the learning order should match those risks.
-
----
-
-## Reading Order
-
-### 1. Read the project spec first
-
-Read:
-
-- [LOCAL_MOBILE_CONSOLE_MVP.md](/Users/jen/ai_work_space/related_to_claw/aka_no_claw_web/docs/LOCAL_MOBILE_CONSOLE_MVP.md)
-
-What to extract:
-
-- Phase 1 is pure chat only
-- user can choose `local` or `cloud_pickle`
-- long chat output must stream or use equivalent job/polling
-- tool-calling is a later phase
-
-If this document is not clear, everything else will be learned out of context.
+- whether Phase 1 stays small enough to finish
+- whether long chat output is handled safely
+- whether local and cloud model backends share one stable product contract
+- whether tool-calling is delayed until plain chat is reliable
 
 ---
 
-### 2. Learn browser-native streaming
+## Phase 1 Decision
 
-Read:
+Phase 1 should remain:
 
-- MDN SSE / EventSource  
-  <https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events>
-- MDN ReadableStream / Fetch streaming / AbortController  
-  <https://developer.mozilla.org/en-US/docs/Web/API/Streams_API/Using_readable_streams>
+```text
+Selectable pure chat
+```
 
-What to learn:
+That means:
 
-- when SSE is a good fit
-- when `fetch()` streaming is a better fit
-- how partial chunks are consumed incrementally
-- how `AbortController` stops an in-flight request
-- why one final JSON response is bad for long chat output
+- user can choose `local`
+- user can choose `cloud_pickle`
+- user sends a normal chat message
+- system returns a normal chat response
 
-What you should be able to answer after reading:
+That also means Phase 1 should not include:
 
-- Why does a long model reply look like a freeze if the backend only returns one final JSON payload?
-- What is the difference between `EventSource` and streamed `fetch()`?
-- How should the UI keep partial output when the request is cancelled or breaks?
+- tool-calling
+- `/help` capability execution
+- command planning
+- multi-step agent workflows
+- background job orchestration beyond what is required for long-output chat safety
 
----
+Why:
 
-### 3. Learn Python backend streaming and cancellation
+If Phase 1 includes both model selection and tool execution, the project will
+mix three hard problems at once:
 
-Read:
+- model backend abstraction
+- long-output chat UX
+- agent/tool reliability
 
-- FastAPI `StreamingResponse`  
-  <https://fastapi.tiangolo.com/advanced/custom-response/#streamingresponse>
-
-What to learn:
-
-- how Python generators stream bytes/chunks
-- why async generators need an `await` point
-- how cancellation behaves when the client disconnects
-- why long-running streams can leak work if cancellation is ignored
-
-What you should be able to answer:
-
-- Why can a worker keep running after the user closes the page?
-- Why does an async generator need to yield control to the event loop?
-- What is the minimum shape of a safe chat stream endpoint?
+That is the fastest path to delay and instability.
 
 ---
 
-### 4. Learn local model API structure
+## Long Output Decision
 
-Read:
+Long chat output is a product decision, not just an implementation detail.
 
-- Ollama API introduction  
-  <https://docs.ollama.com/api/introduction>
+If the system waits for one final JSON response before rendering anything, the
+UI will feel frozen during long replies.
 
-What to learn:
+So the correct product decision is:
 
-- how a local model is wrapped behind HTTP
-- how one runtime can expose both local and cloud endpoints
-- what a stable backend adapter boundary looks like
+```text
+Phase 1 chat must stream output or use equivalent job/polling behavior.
+```
 
-What you should be able to answer:
+This is required because the user experience otherwise looks like:
 
-- How do we hide backend differences behind one `chat_backend` field?
-- What should remain the same whether the model is local or cloud?
-- Which parts belong to the UI, and which belong to the backend adapter?
+- nothing happens
+- the page feels hung
+- the user cannot tell whether the model is still working
+- cancel/retry behavior becomes unclear
 
----
+The exact implementation can vary.
 
-### 5. Learn how to keep the UI responsive during generation
-
-Read:
-
-- React `useTransition`  
-  <https://react.dev/reference/react/useTransition>
-
-What to learn:
-
-- pending UI state
-- non-blocking updates
-- separating typing/input responsiveness from rendering work
-
-What you should be able to answer:
-
-- How should the UI show "generating" without locking the input?
-- Which state updates should be treated as non-urgent?
-- Why is frontend responsiveness not solved by changing frameworks alone?
+The decision does not.
 
 ---
 
-## What Not to Study First
+## Backend Choice Decision
 
-Do not start here:
-
-- Rust web backends
-- Angular architecture
-- full agent frameworks
-- generic "learn AI agents" videos
-- vector DB / RAG tutorials unrelated to this repo
+Keep the backend inside `aka_no_claw` and keep it in Python for Phase 1.
 
 Reason:
 
-Those topics are not the current bottleneck.
+- existing OpenClaw logic already lives there
+- model routing and later tool integration will live there
+- moving Phase 1 to Rust creates integration cost without solving the main risk
 
-Right now the system wins or fails on:
+Rust is not the bottleneck right now.
 
-- stable chat request contract
-- reliable long-output streaming
-- cancellation behavior
-- clean local/cloud backend abstraction
-
----
-
-## Phase-Based Knowledge Goals
-
-### Phase 1
-
-Goal:
-
-```text
-Selectable pure chat with long-output streaming
-```
-
-You should understand:
-
-- request/response contract design
-- streaming events
-- partial rendering
-- cancellation
-- local vs cloud backend selection
-
-You do not need yet:
-
-- tool execution planning
-- multi-step agent orchestration
-- `/help` capability routing
-
-### Phase 2
-
-Goal:
-
-```text
-Tool-capable chat agent
-```
-
-Only after Phase 1 is stable, study:
-
-- tool registry design
-- constrained command execution
-- progress events for long jobs
-- audit logs for tool calls
-- fallback and retry behavior
+The bottleneck is stable chat behavior under long output.
 
 ---
 
-## Recommended Personal Study Loop
+## Frontend Choice Decision
 
-Use this loop instead of passive reading:
+Keep the frontend simple.
 
-1. Read one official doc.
-2. Write down the failure mode it prevents.
-3. Map that failure mode to this system.
-4. Update the spec or implementation decision only if the mapping is concrete.
+React + Vite + TypeScript is already good enough for the decision space here.
 
-Example:
+Do not switch frameworks unless there is a specific product problem that React
+cannot solve.
 
-```text
-ReadableStream + AbortController
-→ failure mode: user cannot stop long output
-→ system impact: chat page feels frozen / leaks work
-→ action: require cancel control and backend disconnect handling
-```
+Right now there is no such problem.
 
-This is the fastest way to build useful system intuition.
+Vue would also work.
+
+Angular is likely too heavy for this product stage.
+
+Changing frontend framework now is more likely to consume time than reduce risk.
 
 ---
 
-## Strong Recommendation
+## Model Abstraction Decision
 
-If you want to keep up with future optimization work, aim to become fluent in
-these four topics first:
+The product should treat model choice as:
 
-- HTTP streaming
-- cancellation and timeouts
-- Python async/generator behavior
-- adapter design for multiple model backends
+```text
+one chat feature
+multiple backends
+```
 
-That knowledge will pay off immediately in this project.
+This means the visible product contract should stay stable while the backend
+changes underneath.
 
-Switching frameworks will not.
+The user-facing choice is:
+
+- `local`
+- `cloud_pickle`
+
+What should stay the same across both:
+
+- one chat input
+- one conversation stream
+- one cancel/retry mental model
+- one error-handling style
+
+If local and cloud produce completely different product behavior, the system
+will become harder to reason about and harder to maintain.
+
+---
+
+## Phase 2 Decision
+
+Tool-calling belongs to Phase 2.
+
+Only start it after Phase 1 is stable in these areas:
+
+- model selection works
+- long output feels reliable
+- cancel/retry behavior is clear
+- local and cloud backends behave similarly enough
+
+If those are not stable yet, adding tools will make debugging much slower.
+
+---
+
+## What To Ignore
+
+You can safely ignore most implementation details for now:
+
+- React component structure
+- exact endpoint code
+- async generator patterns
+- stream parser code
+- SSE formatting details
+- Python cancellation mechanics
+
+Those are implementation concerns for the agent.
+
+You only need to care about whether the chosen direction is correct.
+
+---
+
+## Questions To Ask During Review
+
+When reviewing future proposals or PRs, these are the useful questions:
+
+1. Does this keep Phase 1 small?
+2. Does this make long chat output feel reliable?
+3. Does this preserve one clean contract for `local` and `cloud_pickle`?
+4. Does this avoid prematurely adding tool-calling?
+5. Does this reduce future complexity, or only move it around?
+
+If a proposal cannot answer those questions clearly, it is probably not ready.
+
+---
+
+## Bottom Line
+
+The highest-value knowledge for you is not implementation knowledge.
+
+It is decision knowledge:
+
+- what to build first
+- what to delay
+- what risks actually matter
+- what technical choices are real constraints versus distractions
+
+For this system, the core judgment is:
+
+```text
+Make Phase 1 a reliable selectable-chat product.
+Do not turn it into a full agent too early.
+```
