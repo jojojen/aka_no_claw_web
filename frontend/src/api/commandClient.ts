@@ -3,9 +3,14 @@ import type {
   AsyncStartResponse,
   CommandResponse,
   JobPollResponse,
+  SessionClearResponse,
+  SessionLoadResponse,
+  SessionSaveResponse,
+  SessionSnapshot,
   StreamEvent,
   WebCommandRequest,
 } from "../types/command";
+import { emptySnapshot } from "../session";
 
 const COMMAND_URL = "/api/command";
 const STREAM_URL = "/api/command/stream";
@@ -13,6 +18,7 @@ const ASYNC_URL = "/api/command/async";
 const POLL_URL = "/api/command/poll";
 const ACTION_URL = "/api/command/action";
 const MUSIC_URL = "/api/command/music";
+const SESSION_URL = "/api/command/session";
 
 // Blocking call — used for short non-chat commands (translation, research).
 export async function sendCommand(req: WebCommandRequest): Promise<CommandResponse> {
@@ -158,5 +164,57 @@ async function postMusic(body: Record<string, string>): Promise<ActionResponse> 
     return (await res.json()) as ActionResponse;
   } catch {
     return { status: "error", message: `HTTP ${res.status}` };
+  }
+}
+
+// --- server-side session memory (aka_no_claw#32 / web#2) -------------------
+// The Mac mini owns the console session so a reload / reconnect restores it.
+
+// GET the latest saved snapshot. A network/HTTP/JSON failure degrades to an
+// empty session marked with status "error" so the caller can show an in-app
+// notice and still start from a blank, usable console (never a browser alert).
+export async function loadSession(): Promise<SessionLoadResponse> {
+  try {
+    const res = await fetch(SESSION_URL);
+    if (!res.ok) {
+      return { status: "error", session: emptySnapshot(), message: `HTTP ${res.status}` };
+    }
+    const data = (await res.json()) as SessionLoadResponse;
+    if (!data || typeof data !== "object" || !data.session) {
+      return { status: "error", session: emptySnapshot(), message: "回應格式錯誤" };
+    }
+    return data;
+  } catch (err) {
+    return { status: "error", session: emptySnapshot(), message: String(err) };
+  }
+}
+
+// POST a snapshot (the body IS the snapshot). Never throws: a failed save must
+// not break the in-progress conversation — the caller keeps using the runtime
+// state and we just report the failure for an optional non-blocking notice.
+export async function saveSession(
+  snapshot: SessionSnapshot,
+): Promise<SessionSaveResponse> {
+  try {
+    const res = await fetch(SESSION_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(snapshot),
+    });
+    const data = (await res.json()) as SessionSaveResponse;
+    return data;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+// DELETE the saved snapshot (clear memory). Idempotent on the backend.
+export async function clearSession(): Promise<SessionClearResponse> {
+  try {
+    const res = await fetch(SESSION_URL, { method: "DELETE" });
+    const data = (await res.json()) as SessionClearResponse;
+    return data;
+  } catch (err) {
+    return { status: "error", message: String(err) };
   }
 }

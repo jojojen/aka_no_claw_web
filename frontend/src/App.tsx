@@ -1,21 +1,26 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   ChatBackend,
   Message,
   Mode,
+  SessionSnapshot,
   Submode,
   WebCommandRequest,
 } from "./types/command";
 import {
+  clearSession,
+  loadSession,
   pollJob,
   runAction,
   runMusicAction,
   runMusicCommand,
+  saveSession,
   sendCommand,
   startAsyncCommand,
   streamCommand,
 } from "./api/commandClient";
 import type { ActionResponse } from "./types/command";
+import { debounce, fromSnapshot, toSnapshot } from "./session";
 import { ModeToggle } from "./components/ModeToggle";
 import { ChatBackendSelector } from "./components/ChatBackendSelector";
 import { InvestmentActionPanel } from "./components/InvestmentActionPanel";
@@ -57,13 +62,60 @@ export default function App() {
     useState<Submode>("deep_product_research");
   const [messages, setMessages] = useState<Message[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [restored, setRestored] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const stopPollRef = useRef<(() => void) | null>(null);
+
+  // Debounced writer: a burst of state changes (streaming deltas, rapid taps)
+  // collapses into one POST so token streaming doesn't hammer the backend.
+  const saverRef = useRef<ReturnType<typeof debounce<[SessionSnapshot]>>>();
+  if (!saverRef.current) {
+    saverRef.current = debounce((snap: SessionSnapshot) => {
+      void saveSession(snap);
+    }, 800);
+  }
 
   const placeholder = useMemo(
     () => placeholderFor(mode, investmentSubmode),
     [mode, investmentSubmode],
   );
+
+  // Restore the session from the Mac mini on open. A failure (offline / corrupt
+  // payload) fails soft: start blank and show an in-app banner, never an alert.
+  // We don't auto-resume polling for any restored job_id — its text is kept as
+  // static history, so an already-expired job can't trigger endless polling.
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const res = await loadSession();
+      if (!alive) return;
+      const st = fromSnapshot(res.session);
+      setMessages(st.messages);
+      setMode(st.mode);
+      setChatBackend(st.chatBackend);
+      setInvestmentSubmode(st.investmentSubmode);
+      if (res.status === "error") {
+        setNotice("無法從本機還原工作階段，已開新對話。");
+      }
+      setRestored(true);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Persist (debounced) whenever the restorable state changes — but only after
+  // the initial restore, so the blank startup state can't clobber saved data.
+  useEffect(() => {
+    if (!restored) return;
+    saverRef.current?.(toSnapshot({ messages, mode, chatBackend, investmentSubmode }));
+  }, [restored, messages, mode, chatBackend, investmentSubmode]);
+
+  // Flush any pending write on unmount so a quick close doesn't drop the last
+  // snapshot.
+  useEffect(() => () => saverRef.current?.flush(), []);
 
   const patch = useCallback((id: string, partial: Partial<Message>) => {
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...partial } : m)));
@@ -363,6 +415,20 @@ export default function App() {
     stopPollRef.current?.();
   }, []);
 
+  // Clear memory: delete the saved snapshot and wipe the visible stream. A save
+  // failure leaves the conversation cleared locally and notes it; the running
+  // app stays usable either way.
+  const onClearMemory = useCallback(async () => {
+    saverRef.current?.cancel();
+    setConfirmClear(false);
+    setNotice(null);
+    const res = await clearSession();
+    setMessages([]);
+    if (res.status !== "ok") {
+      setNotice("清除本機記憶失敗，但目前對話已清空。");
+    }
+  }, []);
+
   // Click a research follow-up button (摘要 / 看市價 / …): switch the view in
   // place, keeping the buttons so the user can flip between views.
   const onAction = useCallback(
@@ -395,9 +461,47 @@ export default function App() {
 
   return (
     <div className="mx-auto flex h-full max-w-content flex-col bg-surface">
-      <header className="border-b border-muted px-4 py-3">
+      <header className="flex items-center justify-between gap-2 border-b border-muted px-4 py-3">
         <h1 className="text-base font-semibold">OpenClaw 本機控制台</h1>
+        {confirmClear ? (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-text/70">清除記憶？</span>
+            <button
+              onClick={onClearMemory}
+              className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+            >
+              確定清除
+            </button>
+            <button
+              onClick={() => setConfirmClear(false)}
+              className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+            >
+              取消
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmClear(true)}
+            className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+            title="刪除本機已儲存的工作階段並清空對話"
+          >
+            清除記憶
+          </button>
+        )}
       </header>
+
+      {notice && (
+        <div className="flex items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+          <span>{notice}</span>
+          <button
+            onClick={() => setNotice(null)}
+            className="text-amber-700/70 hover:text-amber-900"
+            aria-label="關閉提示"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="border-b border-muted px-3 py-3">
         <ModeToggle mode={mode} onChange={setMode} />

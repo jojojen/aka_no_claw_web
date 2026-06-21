@@ -92,6 +92,37 @@ export type ActionResponse = {
   actions?: ActionButton[];
 };
 
+// Server-side session snapshot (aka_no_claw#32 / web#2). The Mac mini owns this
+// JSON; the console restores it on open and writes it back (debounced) so a page
+// reload / browser close / reconnect doesn't lose recent chat + research output.
+// Field names mirror the backend contract (snake_case), not the in-app state.
+export type SessionSnapshot = {
+  schema_version?: number;
+  messages: Message[];
+  mode: Mode | null;
+  chat_backend: ChatBackend | null;
+  investment_submode: Submode | null;
+  active_job_id: string | null;
+  updated_at?: number | null;
+};
+
+export type SessionLoadResponse = {
+  status: "ok" | "error";
+  session: SessionSnapshot;
+  message?: string;
+};
+
+export type SessionSaveResponse = {
+  status: "ok" | "error";
+  updated_at?: number;
+  message?: string;
+};
+
+export type SessionClearResponse = {
+  status: "ok" | "error";
+  message?: string;
+};
+
 // UI-side conversation model (shared across all modes).
 export type MessageRole = "user" | "assistant" | "system";
 
