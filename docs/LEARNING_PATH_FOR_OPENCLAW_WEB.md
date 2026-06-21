@@ -172,6 +172,106 @@ If those are not stable yet, adding tools will make debugging much slower.
 
 ---
 
+## Minimal Theory To Understand
+
+You do not need deep mathematics or computer science theory for this project.
+
+You only need a lightweight understanding of the ideas below because they help
+you make correct decisions.
+
+### 1. State machine thinking
+
+You should think of the chat system as moving through states:
+
+```text
+idle -> running -> streaming -> done / error / cancelled
+```
+
+Why this matters:
+
+- it prevents incomplete specs
+- it forces cancel/error states to be designed explicitly
+- it makes "looks frozen" problems easier to identify
+
+### 2. Synchronous vs asynchronous work
+
+You do not need formal concurrency theory.
+
+You do need to understand one product truth:
+
+```text
+long-running model work must not block the whole user experience
+```
+
+Why this matters:
+
+- it explains why streaming or job/polling is required
+- it explains why "wait for final JSON" feels broken
+- it explains why cancel and retry need explicit design
+
+### 3. Queueing and backpressure
+
+You only need the intuition, not the equations.
+
+If the model produces output or receives requests faster than the UI/backend can
+handle them, the system starts to lag, pile up work, or fail unpredictably.
+
+Why this matters:
+
+- it supports timeout and concurrency limits
+- it explains why Phase 1 should stay small
+- it explains why too many simultaneous concerns make the system brittle
+
+### 4. Timeouts, retries, and cancellation
+
+You do not need distributed systems theory in depth.
+
+You do need to remember:
+
+- a timeout does not always mean the work stopped
+- a retry can create duplicate work
+- a cancel action may not stop the underlying worker immediately
+
+Why this matters:
+
+- it affects product trust
+- it affects whether "retry" is safe
+- it affects whether backend cleanup is mandatory
+
+### 5. Abstraction boundaries
+
+This is software design more than theory.
+
+The useful idea is:
+
+```text
+different implementations should still present one stable product contract
+```
+
+Why this matters:
+
+- local and cloud chat should feel like one feature
+- backend swaps should not force frontend redesign
+- Phase 2 tool-calling should build on the same contract rather than replace it
+
+### 6. Complexity control
+
+You do not need advanced algorithm analysis.
+
+You only need the management intuition:
+
+```text
+every extra concern added to Phase 1 multiplies uncertainty
+```
+
+Why this matters:
+
+- it justifies delaying tool-calling
+- it helps you reject oversized proposals
+- it keeps the system debuggable
+
+---
+
 ## What To Ignore
 
 You can safely ignore most implementation details for now:

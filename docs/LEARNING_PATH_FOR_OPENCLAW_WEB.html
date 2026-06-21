@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Decision Guide for OpenClaw Web</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --panel: rgba(255, 252, 245, 0.92);
+      --ink: #1f2a2e;
+      --muted: #5d6a6f;
+      --line: #d7d0c2;
+      --accent: #146356;
+      --accent-soft: #dcefe8;
+      --warn: #8b4c2f;
+      --mono: "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+      --sans: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(20, 99, 86, 0.10), transparent 32%),
+        radial-gradient(circle at top right, rgba(139, 76, 47, 0.08), transparent 28%),
+        linear-gradient(180deg, #f8f5ef 0%, var(--bg) 100%);
+      font-family: var(--sans);
+      line-height: 1.65;
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 18px 72px;
+    }
+
+    .hero,
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 12px 28px rgba(31, 42, 46, 0.06);
+    }
+
+    .hero {
+      padding: 28px 24px;
+      margin-bottom: 18px;
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--accent);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-family: Arial, sans-serif;
+      font-weight: 700;
+    }
+
+    h1, h2, h3 {
+      margin: 0 0 12px;
+      line-height: 1.15;
+      font-weight: 700;
+    }
+
+    h1 { font-size: clamp(32px, 6vw, 52px); }
+    h2 { font-size: 28px; }
+    h3 { font-size: 20px; margin-top: 22px; }
+
+    p { margin: 0 0 14px; }
+    ul, ol { margin: 0 0 14px 22px; padding: 0; }
+    li { margin: 0 0 8px; }
+
+    .summary {
+      color: var(--muted);
+      max-width: 64ch;
+      font-size: 18px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      margin-top: 22px;
+    }
+
+    .card {
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(246,241,232,0.9));
+    }
+
+    .card strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--accent);
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .section {
+      padding: 22px 22px 18px;
+      margin-top: 16px;
+    }
+
+    .callout {
+      padding: 14px 16px;
+      margin: 16px 0;
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      border-radius: 10px;
+    }
+
+    .warning {
+      border-left-color: var(--warn);
+      background: rgba(139, 76, 47, 0.10);
+    }
+
+    code, pre {
+      font-family: var(--mono);
+      font-size: 0.95em;
+    }
+
+    pre {
+      margin: 14px 0;
+      padding: 14px 16px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      border-radius: 12px;
+      background: #1f2a2e;
+      color: #f3f6f7;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 14px 0 8px;
+    }
+
+    .pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.74);
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+    }
+
+    a { color: var(--accent); }
+
+    @media (max-width: 640px) {
+      .wrap { padding: 20px 12px 52px; }
+      .hero, .section { border-radius: 12px; }
+      .hero { padding: 22px 18px; }
+      .section { padding: 18px 16px 14px; }
+      h2 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <p class="eyebrow">OpenClaw Web</p>
+      <h1>Decision Guide</h1>
+      <p class="summary">
+        This is a decision document, not a coding guide. The goal is to help the
+        system owner judge scope, risk, sequencing, and technical direction
+        without needing to care about implementation details.
+      </p>
+      <div class="grid">
+        <div class="card">
+          <strong>Phase 1</strong>
+          Selectable pure chat. Keep it small and finishable.
+        </div>
+        <div class="card">
+          <strong>Main Risk</strong>
+          Long output that feels frozen or cannot be cancelled.
+        </div>
+        <div class="card">
+          <strong>Phase 2</strong>
+          Tool-calling only after plain chat is reliable.
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>What Matters</h2>
+      <p>The important decisions are not framework-brand decisions.</p>
+      <div class="pill-row">
+        <span class="pill">Not React vs Vue</span>
+        <span class="pill">Not FastAPI vs another Python framework</span>
+        <span class="pill">Not Python vs Rust</span>
+      </div>
+      <p>The primary decisions are:</p>
+      <ul>
+        <li>whether Phase 1 stays small enough to finish</li>
+        <li>whether long chat output is handled safely</li>
+        <li>whether local and cloud backends share one stable product contract</li>
+        <li>whether tool-calling is delayed until plain chat is reliable</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Phase 1 Decision</h2>
+      <pre>Selectable pure chat</pre>
+      <p>Phase 1 should include:</p>
+      <ul>
+        <li>user can choose <code>local</code></li>
+        <li>user can choose <code>cloud_pickle</code></li>
+        <li>user sends a normal chat message</li>
+        <li>system returns a normal chat response</li>
+      </ul>
+      <p>Phase 1 should not include:</p>
+      <ul>
+        <li>tool-calling</li>
+        <li><code>/help</code> capability execution</li>
+        <li>command planning</li>
+        <li>multi-step agent workflows</li>
+      </ul>
+      <div class="callout warning">
+        If Phase 1 includes both model selection and tool execution, the project
+        mixes three hard problems at once: backend abstraction, long-output UX,
+        and agent/tool reliability.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Long Output Decision</h2>
+      <p>Long chat output is a product decision, not just an implementation detail.</p>
+      <pre>Phase 1 chat must stream output or use equivalent job/polling behavior.</pre>
+      <p>If the system waits for one final JSON response before rendering anything, the UI will feel frozen during long replies.</p>
+      <ul>
+        <li>nothing appears to happen</li>
+        <li>the page feels hung</li>
+        <li>the user cannot tell whether the model is still working</li>
+        <li>cancel and retry behavior becomes unclear</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Backend Choice Decision</h2>
+      <p>Keep the backend inside <code>aka_no_claw</code> and keep it in Python for Phase 1.</p>
+      <ul>
+        <li>existing OpenClaw logic already lives there</li>
+        <li>model routing and later tool integration will live there</li>
+        <li>moving to Rust now adds integration cost without solving the main risk</li>
+      </ul>
+      <div class="callout">Rust is not the bottleneck right now. The bottleneck is stable chat behavior under long output.</div>
+    </section>
+
+    <section class="section">
+      <h2>Frontend Choice Decision</h2>
+      <p>Keep the frontend simple.</p>
+      <ul>
+        <li>React + Vite + TypeScript is already good enough</li>
+        <li>Vue would also work</li>
+        <li>Angular is likely too heavy for this stage</li>
+      </ul>
+      <p>Changing frontend framework now is more likely to consume time than reduce risk.</p>
+    </section>
+
+    <section class="section">
+      <h2>Model Abstraction Decision</h2>
+      <pre>one chat feature
+multiple backends</pre>
+      <p>The visible product contract should stay stable while the backend changes underneath.</p>
+      <p>The user-facing choice is:</p>
+      <ul>
+        <li><code>local</code></li>
+        <li><code>cloud_pickle</code></li>
+      </ul>
+      <p>What should stay the same across both:</p>
+      <ul>
+        <li>one chat input</li>
+        <li>one conversation stream</li>
+        <li>one cancel/retry mental model</li>
+        <li>one error-handling style</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Phase 2 Decision</h2>
+      <p>Tool-calling belongs to Phase 2.</p>
+      <p>Only start it after Phase 1 is stable in these areas:</p>
+      <ul>
+        <li>model selection works</li>
+        <li>long output feels reliable</li>
+        <li>cancel/retry behavior is clear</li>
+        <li>local and cloud backends behave similarly enough</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Minimal Theory To Understand</h2>
+      <p>You do not need deep mathematics or computer science theory. You only need a lightweight understanding of the ideas below because they improve decision quality.</p>
+
+      <h3>1. State machine thinking</h3>
+      <pre>idle -> running -> streaming -> done / error / cancelled</pre>
+      <p>This helps you notice incomplete specs and makes "looks frozen" problems easier to identify.</p>
+
+      <h3>2. Synchronous vs asynchronous work</h3>
+      <pre>long-running model work must not block the whole user experience</pre>
+      <p>This explains why streaming or job/polling is required and why final-only JSON feels broken.</p>
+
+      <h3>3. Queueing and backpressure</h3>
+      <p>You only need the intuition: if the model produces output or receives requests faster than the UI/backend can handle them, the system starts to lag, pile up work, or fail unpredictably.</p>
+
+      <h3>4. Timeouts, retries, and cancellation</h3>
+      <ul>
+        <li>a timeout does not always mean the work stopped</li>
+        <li>a retry can create duplicate work</li>
+        <li>a cancel action may not stop the underlying worker immediately</li>
+      </ul>
+
+      <h3>5. Abstraction boundaries</h3>
+      <pre>different implementations should still present one stable product contract</pre>
+      <p>This protects the system when local and cloud backends evolve.</p>
+
+      <h3>6. Complexity control</h3>
+      <pre>every extra concern added to Phase 1 multiplies uncertainty</pre>
+      <p>This is the core reason to delay tool-calling.</p>
+    </section>
+
+    <section class="section">
+      <h2>What To Ignore</h2>
+      <p>You can safely ignore most implementation details for now:</p>
+      <ul>
+        <li>React component structure</li>
+        <li>exact endpoint code</li>
+        <li>async generator patterns</li>
+        <li>stream parser code</li>
+        <li>SSE formatting details</li>
+        <li>Python cancellation mechanics</li>
+      </ul>
+      <p>Those are implementation concerns for the agent.</p>
+    </section>
+
+    <section class="section">
+      <h2>Questions To Ask During Review</h2>
+      <ol>
+        <li>Does this keep Phase 1 small?</li>
+        <li>Does this make long chat output feel reliable?</li>
+        <li>Does this preserve one clean contract for <code>local</code> and <code>cloud_pickle</code>?</li>
+        <li>Does this avoid prematurely adding tool-calling?</li>
+        <li>Does this reduce future complexity, or only move it around?</li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <h2>Bottom Line</h2>
+      <p>The highest-value knowledge for you is not implementation knowledge.</p>
+      <p>It is decision knowledge:</p>
+      <ul>
+        <li>what to build first</li>
+        <li>what to delay</li>
+        <li>what risks actually matter</li>
+        <li>what technical choices are real constraints versus distractions</li>
+      </ul>
+      <div class="callout">
+        <strong>Core judgment:</strong><br>
+        Make Phase 1 a reliable selectable-chat product.<br>
+        Do not turn it into a full agent too early.
+      </div>
+    </section>
+  </main>
+</body>
+</html>
