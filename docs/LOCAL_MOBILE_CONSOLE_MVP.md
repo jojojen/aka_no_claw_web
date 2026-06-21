@@ -312,6 +312,61 @@ Phase 1 explicitly does not need:
 Phase 1 success means the user can select each configured model backend and
 have a normal text conversation with it through the local Web UI.
 
+### Chat Mode Long Output Reliability
+
+Chat Mode can produce long continuous text. Phase 1 must not rely only on a
+single blocking request that returns one final JSON response after the model
+finishes.
+
+Phase 1 should support streaming or an equivalent non-blocking job protocol for
+chat responses.
+
+Preferred streaming shape:
+
+```text
+POST /api/command/stream
+request: same chat request body as /api/command
+response: text/event-stream or newline-delimited JSON events
+```
+
+Minimum event types:
+
+```json
+{ "type": "start", "request_id": "..." }
+{ "type": "delta", "text": "partial text" }
+{ "type": "heartbeat" }
+{ "type": "done", "message": "final full text" }
+{ "type": "error", "message": "user-readable error" }
+```
+
+Frontend requirements:
+
+- append `delta` text into the current assistant message as it arrives
+- keep the input area usable after the request is submitted
+- show a visible generating state
+- provide a stop/cancel control
+- keep already-rendered partial text if the stream fails
+- show stream errors as normal messages, not browser alerts
+
+Backend requirements:
+
+- normalize both local model and cloud pickle output into the same stream events
+- send heartbeat events during long idle gaps
+- support client disconnect / cancel without leaking workers
+- enforce a practical max runtime or idle timeout
+- return a structured error event if the selected backend is unavailable
+
+If streaming is temporarily impossible, the fallback must be job-based:
+
+```text
+POST /api/command/jobs
+GET /api/command/jobs/{id}
+POST /api/command/jobs/{id}/cancel
+```
+
+Plain blocking JSON is acceptable only for short non-chat commands, not for the
+Phase 1 chat path.
+
 ### Long-term Chat Agent Direction
 
 Chat Mode is not just casual model chat. It should become the operator-facing
@@ -379,6 +434,9 @@ phase after the model selector and plain chat path work reliably.
 - [ ] Chat Mode can select `local` chat backend.
 - [ ] Chat Mode can select `cloud pickle` chat backend.
 - [ ] Phase 1 Chat Mode returns pure model chat responses without tool calls.
+- [ ] Phase 1 Chat Mode streams long responses or uses an equivalent job/polling protocol.
+- [ ] User can stop/cancel an in-flight chat response.
+- [ ] Partial output remains visible if the stream fails.
 - [ ] Chat responses appear in the shared conversation stream.
 - [ ] Switching away and back to Chat Mode does not clear the conversation.
 - [ ] Chat Mode does not wrap input with `/zh` or `/research`.
@@ -890,9 +948,40 @@ Pydantic-style or equivalent response/request models
 local command bridge to OpenClaw
 ```
 
-Streaming is not required for this issue.
+Streaming is required for Phase 1 Chat Mode long responses.
 
-SSE can be added later.
+Either of these is acceptable:
+
+```text
+fetch streaming over POST
+SSE / event stream endpoint
+```
+
+Framework decision:
+
+```text
+Keep React + Vite + TypeScript for the frontend.
+Keep the backend in Python inside aka_no_claw.
+Do not switch to Rust for Phase 1.
+Do not switch to Angular for Phase 1.
+Vue would also work, but it does not solve the streaming risk better than React.
+```
+
+Implementation references:
+
+- MDN Server-Sent Events: browser-native one-way server-to-client event streams using `EventSource` and `text/event-stream`.
+- MDN Fetch / ReadableStream: browser fetch responses can be consumed incrementally as streams, and `AbortController` can cancel in-flight fetches.
+- FastAPI StreamingResponse: Python endpoints can stream bytes from sync or async generators; cancellation only works reliably when the generator yields control.
+- React server streaming APIs show React can participate in streaming, but this MVP does not need React server rendering. The relevant frontend need is consuming model-output streams, which React + browser Fetch/SSE can do without switching frameworks.
+
+Reference URLs:
+
+```text
+https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events
+https://developer.mozilla.org/en-US/docs/Web/API/Streams_API/Using_readable_streams
+https://fastapi.tiangolo.com/advanced/custom-response/#streamingresponse
+https://react.dev/reference/react-dom/server/renderToPipeableStream
+```
 
 Rust is not recommended for the first MVP because the primary work is UI iteration and integration with Python-based OpenClaw behavior.
 
