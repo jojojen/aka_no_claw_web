@@ -9,17 +9,26 @@ import type {
 import {
   pollJob,
   runAction,
+  runMusicAction,
+  runMusicCommand,
   sendCommand,
   startAsyncCommand,
   streamCommand,
 } from "./api/commandClient";
+import type { ActionResponse } from "./types/command";
 import { ModeToggle } from "./components/ModeToggle";
 import { ChatBackendSelector } from "./components/ChatBackendSelector";
 import { InvestmentActionPanel } from "./components/InvestmentActionPanel";
+import { LifeActionPanel } from "./components/LifeActionPanel";
 import { ConversationStream } from "./components/ConversationStream";
 import { InputBar } from "./components/InputBar";
 
 const SOURCE = "aka_no_claw_web";
+
+// Sentinel jobId marking a 生活-mode music message, so its action buttons stay
+// enabled and route back through the music endpoint (not the research action
+// endpoint, which needs a real research job id).
+const MUSIC_JOB_ID = "__music__";
 
 let _seq = 0;
 const uid = () => `m${Date.now()}-${_seq++}`;
@@ -30,11 +39,13 @@ const MODE_LABELS: Record<string, string> = {
   image_translation: "翻譯",
   deep_product_research: "商品深入研究",
   seller_reputation_snapshot: "賣家信譽快照",
+  life: "生活",
 };
 
 function placeholderFor(mode: Mode, submode: Submode): string {
   if (mode === "chat") return "輸入訊息...";
   if (mode === "translation") return "翻譯成繁體中文...";
+  if (mode === "life") return "輸入歌名播放，或用上方按鈕控制...";
   if (submode === "seller_reputation_snapshot") return "貼上賣家 URL 或輸入賣家識別資訊...";
   return "貼上商品 URL 或輸入商品名稱...";
 }
@@ -238,6 +249,51 @@ export default function App() {
     [patch],
   );
 
+  // 生活 mode: run a music interaction (text query or callback button) and
+  // render the backend's text + action buttons into the given message. The
+  // MUSIC_JOB_ID sentinel keeps the returned buttons live and routes their
+  // clicks back through onAction → runMusicAction.
+  const runMusic = useCallback(
+    async (assistantId: string, call: () => Promise<ActionResponse>) => {
+      setGenerating(true);
+      try {
+        const res = await call();
+        patch(assistantId, {
+          text: res.message,
+          status: res.status === "error" ? "error" : "ok",
+          modeLabel: MODE_LABELS.life,
+          actions: res.actions && res.actions.length ? res.actions : undefined,
+          jobId: MUSIC_JOB_ID,
+          generating: false,
+        });
+      } catch (err) {
+        patch(assistantId, {
+          text: `無法連線到本機 command bridge（${String(err)}）`,
+          status: "error",
+          generating: false,
+        });
+      } finally {
+        setGenerating(false);
+      }
+    },
+    [patch],
+  );
+
+  // A 生活 control-panel button: append a fresh assistant message and fill it
+  // with the action result (a new "card" per tap keeps the stream as history).
+  const onMusicPanel = useCallback(
+    (callbackData: string) => {
+      if (generating) return;
+      const assistantId = uid();
+      setMessages((prev) => [
+        ...prev,
+        { id: assistantId, role: "assistant", text: "", modeLabel: MODE_LABELS.life, generating: true },
+      ]);
+      void runMusic(assistantId, () => runMusicAction(callbackData));
+    },
+    [generating, runMusic],
+  );
+
   const onSend = useCallback(
     (text: string) => {
       if (generating) return;
@@ -247,7 +303,9 @@ export default function App() {
           ? MODE_LABELS.chat
           : mode === "translation"
             ? MODE_LABELS.text_translation
-            : MODE_LABELS[investmentSubmode];
+            : mode === "life"
+              ? MODE_LABELS.life
+              : MODE_LABELS[investmentSubmode];
       const assistantId = uid();
       const assistantMsg: Message = {
         id: assistantId,
@@ -257,6 +315,11 @@ export default function App() {
         generating: true,
       };
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
+
+      if (mode === "life") {
+        void runMusic(assistantId, () => runMusicCommand(text));
+        return;
+      }
 
       const req = buildRequest(text);
       if (mode === "chat") {
@@ -270,7 +333,7 @@ export default function App() {
         void runBlocking(req, assistantId, label);
       }
     },
-    [generating, mode, investmentSubmode, buildRequest, runStreaming, runPolling, runBlocking],
+    [generating, mode, investmentSubmode, buildRequest, runStreaming, runPolling, runBlocking, runMusic],
   );
 
   const onSelectImage = useCallback(
@@ -305,6 +368,12 @@ export default function App() {
   const onAction = useCallback(
     async (messageId: string, jobId: string, callbackData: string) => {
       patch(messageId, { generating: true });
+      // 生活 music buttons: re-render this message in place via the music route
+      // (folder/song/favorite navigation, volume), not the research endpoint.
+      if (jobId === MUSIC_JOB_ID) {
+        await runMusic(messageId, () => runMusicAction(callbackData));
+        return;
+      }
       try {
         const res = await runAction(jobId, callbackData);
         patch(messageId, {
@@ -321,7 +390,7 @@ export default function App() {
         });
       }
     },
-    [patch],
+    [patch, runMusic],
   );
 
   return (
@@ -350,6 +419,12 @@ export default function App() {
             submode={investmentSubmode}
             onChange={setInvestmentSubmode}
           />
+        </div>
+      )}
+
+      {mode === "life" && (
+        <div className="border-b border-muted px-3 py-3">
+          <LifeActionPanel disabled={generating} onAction={onMusicPanel} />
         </div>
       )}
 

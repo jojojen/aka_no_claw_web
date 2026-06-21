@@ -2,7 +2,7 @@
 // (docs/LOCAL_MOBILE_CONSOLE_MVP.md → aka_no_claw#30). The web app treats the
 // bridge as an external local API and never reimplements routing.
 
-export type Mode = "chat" | "translation" | "investment";
+export type Mode = "chat" | "translation" | "investment" | "life";
 export type ChatBackend = "local" | "cloud_pickle";
 
 export type Submode =

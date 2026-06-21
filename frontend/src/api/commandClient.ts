@@ -12,6 +12,7 @@ const STREAM_URL = "/api/command/stream";
 const ASYNC_URL = "/api/command/async";
 const POLL_URL = "/api/command/poll";
 const ACTION_URL = "/api/command/action";
+const MUSIC_URL = "/api/command/music";
 
 // Blocking call — used for short non-chat commands (translation, research).
 export async function sendCommand(req: WebCommandRequest): Promise<CommandResponse> {
@@ -121,6 +122,37 @@ export async function runAction(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ job_id: jobId, callback_data: callbackData }),
+  });
+  try {
+    return (await res.json()) as ActionResponse;
+  } catch {
+    return { status: "error", message: `HTTP ${res.status}` };
+  }
+}
+
+// --- 生活 mode: music control surface (aka_no_claw_web#3 / #4) -------------
+// The phone is a remote controller: every music interaction goes through the
+// bridge's /api/command/music route. The browser never scans the filesystem or
+// plays audio — it just renders the backend's text + action buttons.
+
+// Run the /music handler for the 生活 text box: an empty input returns the
+// music menu, a query plays/searches a song.
+export async function runMusicCommand(input: string): Promise<ActionResponse> {
+  return postMusic({ input });
+}
+
+// Re-invoke a music callback button (browse / play / favorite / volume). The
+// callback_data is opaque to the UI; the backend re-validates any path stays
+// under OPENCLAW_MUSIC_DIR before acting.
+export async function runMusicAction(callbackData: string): Promise<ActionResponse> {
+  return postMusic({ callback_data: callbackData });
+}
+
+async function postMusic(body: Record<string, string>): Promise<ActionResponse> {
+  const res = await fetch(MUSIC_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
   try {
     return (await res.json()) as ActionResponse;

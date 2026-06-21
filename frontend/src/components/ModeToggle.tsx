@@ -4,6 +4,7 @@ const MODES: { value: Mode; label: string }[] = [
   { value: "chat", label: "Chat" },
   { value: "translation", label: "翻譯" },
   { value: "investment", label: "投資研究" },
+  { value: "life", label: "生活" },
 ];
 
 type Props = {
