@@ -108,8 +108,10 @@ export default function App() {
 
   // Persist (debounced) whenever the restorable state changes — but only after
   // the initial restore, so the blank startup state can't clobber saved data.
+  // Skip when messages is empty: an empty console has no session worth keeping,
+  // so a successful clear truly leaves no backend snapshot (not an empty one).
   useEffect(() => {
-    if (!restored) return;
+    if (!restored || messages.length === 0) return;
     saverRef.current?.(toSnapshot({ messages, mode, chatBackend, investmentSubmode }));
   }, [restored, messages, mode, chatBackend, investmentSubmode]);
 
