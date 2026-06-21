@@ -48,6 +48,35 @@
     .hero {
       padding: 28px 24px;
       margin-bottom: 18px;
+      position: relative;
+    }
+
+    .hero-actions {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+    }
+
+    .lang-toggle {
+      appearance: none;
+      border: 1px solid rgba(20, 99, 86, 0.22);
+      background: rgba(255, 255, 255, 0.86);
+      color: var(--accent);
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
+      box-shadow: 0 8px 18px rgba(20, 99, 86, 0.10);
+    }
+
+    .lang-toggle:hover {
+      transform: translateY(-1px);
+      background: #ffffff;
     }
 
     .eyebrow {
@@ -161,20 +190,31 @@
       .hero { padding: 22px 18px; }
       .section { padding: 18px 16px 14px; }
       h2 { font-size: 24px; }
+      .hero-actions {
+        top: 14px;
+        right: 14px;
+      }
+      .lang-toggle {
+        padding: 8px 12px;
+        font-size: 11px;
+      }
     }
   </style>
 </head>
 <body>
   <main class="wrap">
     <section class="hero">
-      <p class="eyebrow">OpenClaw Web</p>
-      <h1>Decision Guide</h1>
-      <p class="summary">
+      <div class="hero-actions">
+        <button id="lang-toggle" class="lang-toggle" type="button" aria-label="Switch to Traditional Chinese">繁中</button>
+      </div>
+      <p id="hero-eyebrow" class="eyebrow">OpenClaw Web</p>
+      <h1 id="hero-title">Decision Guide</h1>
+      <p id="hero-summary" class="summary">
         This is a decision document, not a coding guide. The goal is to help the
         system owner judge scope, risk, sequencing, and technical direction
         without needing to care about implementation details.
       </p>
-      <div class="grid">
+      <div id="hero-grid" class="grid">
         <div class="card">
           <strong>Phase 1</strong>
           Selectable pure chat. Keep it small and finishable.
@@ -190,7 +230,7 @@
       </div>
     </section>
 
-    <section class="section">
+    <section id="section-what-matters" class="section">
       <h2>What Matters</h2>
       <p>The important decisions are not framework-brand decisions.</p>
       <div class="pill-row">
@@ -207,7 +247,7 @@
       </ul>
     </section>
 
-    <section class="section">
+    <section id="section-phase-1" class="section">
       <h2>Phase 1 Decision</h2>
       <pre>Selectable pure chat</pre>
       <p>Phase 1 should include:</p>
@@ -231,7 +271,7 @@
       </div>
     </section>
 
-    <section class="section">
+    <section id="section-long-output" class="section">
       <h2>Long Output Decision</h2>
       <p>Long chat output is a product decision, not just an implementation detail.</p>
       <pre>Phase 1 chat must stream output or use equivalent job/polling behavior.</pre>
@@ -244,7 +284,7 @@
       </ul>
     </section>
 
-    <section class="section">
+    <section id="section-backend" class="section">
       <h2>Backend Choice Decision</h2>
       <p>Keep the backend inside <code>aka_no_claw</code> and keep it in Python for Phase 1.</p>
       <ul>
@@ -255,7 +295,7 @@
       <div class="callout">Rust is not the bottleneck right now. The bottleneck is stable chat behavior under long output.</div>
     </section>
 
-    <section class="section">
+    <section id="section-frontend" class="section">
       <h2>Frontend Choice Decision</h2>
       <p>Keep the frontend simple.</p>
       <ul>
@@ -266,7 +306,7 @@
       <p>Changing frontend framework now is more likely to consume time than reduce risk.</p>
     </section>
 
-    <section class="section">
+    <section id="section-model-abstraction" class="section">
       <h2>Model Abstraction Decision</h2>
       <pre>one chat feature
 multiple backends</pre>
@@ -285,7 +325,7 @@ multiple backends</pre>
       </ul>
     </section>
 
-    <section class="section">
+    <section id="section-phase-2" class="section">
       <h2>Phase 2 Decision</h2>
       <p>Tool-calling belongs to Phase 2.</p>
       <p>Only start it after Phase 1 is stable in these areas:</p>
@@ -297,7 +337,7 @@ multiple backends</pre>
       </ul>
     </section>
 
-    <section class="section">
+    <section id="section-theory" class="section">
       <h2>Minimal Theory To Understand</h2>
       <p>You do not need deep mathematics or computer science theory. You only need a lightweight understanding of the ideas below because they improve decision quality.</p>
 
@@ -328,7 +368,7 @@ multiple backends</pre>
       <p>This is the core reason to delay tool-calling.</p>
     </section>
 
-    <section class="section">
+    <section id="section-ignore" class="section">
       <h2>What To Ignore</h2>
       <p>You can safely ignore most implementation details for now:</p>
       <ul>
@@ -342,7 +382,7 @@ multiple backends</pre>
       <p>Those are implementation concerns for the agent.</p>
     </section>
 
-    <section class="section">
+    <section id="section-review" class="section">
       <h2>Questions To Ask During Review</h2>
       <ol>
         <li>Does this keep Phase 1 small?</li>
@@ -353,7 +393,7 @@ multiple backends</pre>
       </ol>
     </section>
 
-    <section class="section">
+    <section id="section-bottom-line" class="section">
       <h2>Bottom Line</h2>
       <p>The highest-value knowledge for you is not implementation knowledge.</p>
       <p>It is decision knowledge:</p>
@@ -370,5 +410,410 @@ multiple backends</pre>
       </div>
     </section>
   </main>
+  <script>
+    const translations = {
+      en: {
+        lang: "en",
+        title: "Decision Guide for OpenClaw Web",
+        toggleText: "繁中",
+        toggleLabel: "Switch to Traditional Chinese",
+        heroEyebrow: "OpenClaw Web",
+        heroTitle: "Decision Guide",
+        heroSummary: "This is a decision document, not a coding guide. The goal is to help the system owner judge scope, risk, sequencing, and technical direction without needing to care about implementation details.",
+        heroGrid: `
+          <div class="card">
+            <strong>Phase 1</strong>
+            Selectable pure chat. Keep it small and finishable.
+          </div>
+          <div class="card">
+            <strong>Main Risk</strong>
+            Long output that feels frozen or cannot be cancelled.
+          </div>
+          <div class="card">
+            <strong>Phase 2</strong>
+            Tool-calling only after plain chat is reliable.
+          </div>
+        `,
+        sections: {
+          "section-what-matters": `
+            <h2>What Matters</h2>
+            <p>The important decisions are not framework-brand decisions.</p>
+            <div class="pill-row">
+              <span class="pill">Not React vs Vue</span>
+              <span class="pill">Not FastAPI vs another Python framework</span>
+              <span class="pill">Not Python vs Rust</span>
+            </div>
+            <p>The primary decisions are:</p>
+            <ul>
+              <li>whether Phase 1 stays small enough to finish</li>
+              <li>whether long chat output is handled safely</li>
+              <li>whether local and cloud backends share one stable product contract</li>
+              <li>whether tool-calling is delayed until plain chat is reliable</li>
+            </ul>
+          `,
+          "section-phase-1": `
+            <h2>Phase 1 Decision</h2>
+            <pre>Selectable pure chat</pre>
+            <p>Phase 1 should include:</p>
+            <ul>
+              <li>user can choose <code>local</code></li>
+              <li>user can choose <code>cloud_pickle</code></li>
+              <li>user sends a normal chat message</li>
+              <li>system returns a normal chat response</li>
+            </ul>
+            <p>Phase 1 should not include:</p>
+            <ul>
+              <li>tool-calling</li>
+              <li><code>/help</code> capability execution</li>
+              <li>command planning</li>
+              <li>multi-step agent workflows</li>
+            </ul>
+            <div class="callout warning">
+              If Phase 1 includes both model selection and tool execution, the project
+              mixes three hard problems at once: backend abstraction, long-output UX,
+              and agent/tool reliability.
+            </div>
+          `,
+          "section-long-output": `
+            <h2>Long Output Decision</h2>
+            <p>Long chat output is a product decision, not just an implementation detail.</p>
+            <pre>Phase 1 chat must stream output or use equivalent job/polling behavior.</pre>
+            <p>If the system waits for one final JSON response before rendering anything, the UI will feel frozen during long replies.</p>
+            <ul>
+              <li>nothing appears to happen</li>
+              <li>the page feels hung</li>
+              <li>the user cannot tell whether the model is still working</li>
+              <li>cancel and retry behavior becomes unclear</li>
+            </ul>
+          `,
+          "section-backend": `
+            <h2>Backend Choice Decision</h2>
+            <p>Keep the backend inside <code>aka_no_claw</code> and keep it in Python for Phase 1.</p>
+            <ul>
+              <li>existing OpenClaw logic already lives there</li>
+              <li>model routing and later tool integration will live there</li>
+              <li>moving to Rust now adds integration cost without solving the main risk</li>
+            </ul>
+            <div class="callout">Rust is not the bottleneck right now. The bottleneck is stable chat behavior under long output.</div>
+          `,
+          "section-frontend": `
+            <h2>Frontend Choice Decision</h2>
+            <p>Keep the frontend simple.</p>
+            <ul>
+              <li>React + Vite + TypeScript is already good enough</li>
+              <li>Vue would also work</li>
+              <li>Angular is likely too heavy for this stage</li>
+            </ul>
+            <p>Changing frontend framework now is more likely to consume time than reduce risk.</p>
+          `,
+          "section-model-abstraction": `
+            <h2>Model Abstraction Decision</h2>
+            <pre>one chat feature
+multiple backends</pre>
+            <p>The visible product contract should stay stable while the backend changes underneath.</p>
+            <p>The user-facing choice is:</p>
+            <ul>
+              <li><code>local</code></li>
+              <li><code>cloud_pickle</code></li>
+            </ul>
+            <p>What should stay the same across both:</p>
+            <ul>
+              <li>one chat input</li>
+              <li>one conversation stream</li>
+              <li>one cancel/retry mental model</li>
+              <li>one error-handling style</li>
+            </ul>
+          `,
+          "section-phase-2": `
+            <h2>Phase 2 Decision</h2>
+            <p>Tool-calling belongs to Phase 2.</p>
+            <p>Only start it after Phase 1 is stable in these areas:</p>
+            <ul>
+              <li>model selection works</li>
+              <li>long output feels reliable</li>
+              <li>cancel/retry behavior is clear</li>
+              <li>local and cloud backends behave similarly enough</li>
+            </ul>
+          `,
+          "section-theory": `
+            <h2>Minimal Theory To Understand</h2>
+            <p>You do not need deep mathematics or computer science theory. You only need a lightweight understanding of the ideas below because they improve decision quality.</p>
+            <h3>1. State machine thinking</h3>
+            <pre>idle -> running -> streaming -> done / error / cancelled</pre>
+            <p>This helps you notice incomplete specs and makes "looks frozen" problems easier to identify.</p>
+            <h3>2. Synchronous vs asynchronous work</h3>
+            <pre>long-running model work must not block the whole user experience</pre>
+            <p>This explains why streaming or job/polling is required and why final-only JSON feels broken.</p>
+            <h3>3. Queueing and backpressure</h3>
+            <p>You only need the intuition: if the model produces output or receives requests faster than the UI/backend can handle them, the system starts to lag, pile up work, or fail unpredictably.</p>
+            <h3>4. Timeouts, retries, and cancellation</h3>
+            <ul>
+              <li>a timeout does not always mean the work stopped</li>
+              <li>a retry can create duplicate work</li>
+              <li>a cancel action may not stop the underlying worker immediately</li>
+            </ul>
+            <h3>5. Abstraction boundaries</h3>
+            <pre>different implementations should still present one stable product contract</pre>
+            <p>This protects the system when local and cloud backends evolve.</p>
+            <h3>6. Complexity control</h3>
+            <pre>every extra concern added to Phase 1 multiplies uncertainty</pre>
+            <p>This is the core reason to delay tool-calling.</p>
+          `,
+          "section-ignore": `
+            <h2>What To Ignore</h2>
+            <p>You can safely ignore most implementation details for now:</p>
+            <ul>
+              <li>React component structure</li>
+              <li>exact endpoint code</li>
+              <li>async generator patterns</li>
+              <li>stream parser code</li>
+              <li>SSE formatting details</li>
+              <li>Python cancellation mechanics</li>
+            </ul>
+            <p>Those are implementation concerns for the agent.</p>
+          `,
+          "section-review": `
+            <h2>Questions To Ask During Review</h2>
+            <ol>
+              <li>Does this keep Phase 1 small?</li>
+              <li>Does this make long chat output feel reliable?</li>
+              <li>Does this preserve one clean contract for <code>local</code> and <code>cloud_pickle</code>?</li>
+              <li>Does this avoid prematurely adding tool-calling?</li>
+              <li>Does this reduce future complexity, or only move it around?</li>
+            </ol>
+          `,
+          "section-bottom-line": `
+            <h2>Bottom Line</h2>
+            <p>The highest-value knowledge for you is not implementation knowledge.</p>
+            <p>It is decision knowledge:</p>
+            <ul>
+              <li>what to build first</li>
+              <li>what to delay</li>
+              <li>what risks actually matter</li>
+              <li>what technical choices are real constraints versus distractions</li>
+            </ul>
+            <div class="callout">
+              <strong>Core judgment:</strong><br>
+              Make Phase 1 a reliable selectable-chat product.<br>
+              Do not turn it into a full agent too early.
+            </div>
+          `
+        }
+      },
+      zh: {
+        lang: "zh-Hant",
+        title: "OpenClaw Web 決策指南",
+        toggleText: "EN",
+        toggleLabel: "Switch to English",
+        heroEyebrow: "OpenClaw Web",
+        heroTitle: "決策指南",
+        heroSummary: "這是一份給系統 owner 用的決策文件，不是 coding 教學。目的在於幫你判斷範圍、風險、分期與技術方向，而不需要關心實作細節。",
+        heroGrid: `
+          <div class="card">
+            <strong>第一階段</strong>
+            可選模型的純聊天。先做小、先做穩。
+          </div>
+          <div class="card">
+            <strong>主要風險</strong>
+            長輸出看起來像當機，或無法取消。
+          </div>
+          <div class="card">
+            <strong>第二階段</strong>
+            等純聊天可靠後，再做 tool-calling。
+          </div>
+        `,
+        sections: {
+          "section-what-matters": `
+            <h2>真正重要的是什麼</h2>
+            <p>這個專案真正重要的，不是框架品牌之爭。</p>
+            <div class="pill-row">
+              <span class="pill">不是 React vs Vue</span>
+              <span class="pill">不是 FastAPI vs 其他 Python 框架</span>
+              <span class="pill">不是 Python vs Rust</span>
+            </div>
+            <p>真正重要的決策是：</p>
+            <ul>
+              <li>第一階段是否夠小，能夠做完</li>
+              <li>長聊天輸出是否被安全處理</li>
+              <li>地端與雲端模型是否共用同一個穩定產品契約</li>
+              <li>是否把 tool-calling 延後到純聊天可靠之後</li>
+            </ul>
+          `,
+          "section-phase-1": `
+            <h2>第一階段決策</h2>
+            <pre>可選模型的純聊天</pre>
+            <p>第一階段應該包含：</p>
+            <ul>
+              <li>使用者可以選 <code>local</code></li>
+              <li>使用者可以選 <code>cloud_pickle</code></li>
+              <li>使用者送出一般聊天訊息</li>
+              <li>系統回傳一般聊天回覆</li>
+            </ul>
+            <p>第一階段不應該包含：</p>
+            <ul>
+              <li>tool-calling</li>
+              <li><code>/help</code> 能力執行</li>
+              <li>指令規劃</li>
+              <li>多步 agent workflow</li>
+            </ul>
+            <div class="callout warning">
+              如果第一階段同時做模型切換與工具執行，就會一次混進三個難題：後端抽象、長輸出體驗、agent/tool 穩定性。
+            </div>
+          `,
+          "section-long-output": `
+            <h2>長輸出決策</h2>
+            <p>長聊天輸出是產品決策，不只是實作細節。</p>
+            <pre>第一階段聊天必須支援串流輸出，或等價的 job/polling 行為。</pre>
+            <p>如果系統一定要等到最後一包 JSON 才開始顯示，長回覆時 UI 就會看起來像卡死。</p>
+            <ul>
+              <li>畫面看起來什麼都沒發生</li>
+              <li>頁面像是當住了</li>
+              <li>使用者無法判斷模型還有沒有在跑</li>
+              <li>取消與重試的心智模型會變得混亂</li>
+            </ul>
+          `,
+          "section-backend": `
+            <h2>後端選型決策</h2>
+            <p>第一階段後端應留在 <code>aka_no_claw</code>，並維持 Python。</p>
+            <ul>
+              <li>現有 OpenClaw 邏輯已經在那裡</li>
+              <li>模型路由與未來工具整合也會在那裡</li>
+              <li>現在改成 Rust 只會增加整合成本，卻無法解掉主要風險</li>
+            </ul>
+            <div class="callout">現在的瓶頸不是 Rust 不 Rust，而是長輸出聊天能不能穩定。</div>
+          `,
+          "section-frontend": `
+            <h2>前端選型決策</h2>
+            <p>前端保持簡單即可。</p>
+            <ul>
+              <li>React + Vite + TypeScript 已經足夠</li>
+              <li>Vue 也可以</li>
+              <li>Angular 對這個階段來說偏重</li>
+            </ul>
+            <p>現在切換前端框架，更可能浪費時間，而不是降低風險。</p>
+          `,
+          "section-model-abstraction": `
+            <h2>模型抽象決策</h2>
+            <pre>一個聊天功能
+多個後端</pre>
+            <p>產品層看到的契約應該固定，後端實作可以在底下替換。</p>
+            <p>使用者可選的是：</p>
+            <ul>
+              <li><code>local</code></li>
+              <li><code>cloud_pickle</code></li>
+            </ul>
+            <p>兩者之間應該保持一致的部分：</p>
+            <ul>
+              <li>同一個聊天輸入框</li>
+              <li>同一個對話流</li>
+              <li>同一套取消 / 重試心智模型</li>
+              <li>同一種錯誤呈現方式</li>
+            </ul>
+          `,
+          "section-phase-2": `
+            <h2>第二階段決策</h2>
+            <p>Tool-calling 應該放到第二階段。</p>
+            <p>只有在以下幾點穩定之後，才開始：</p>
+            <ul>
+              <li>模型選擇功能可用</li>
+              <li>長輸出體驗可靠</li>
+              <li>取消 / 重試行為清楚</li>
+              <li>地端與雲端後端行為足夠一致</li>
+            </ul>
+          `,
+          "section-theory": `
+            <h2>只需要理解的最小理論</h2>
+            <p>你不需要深度數學或完整計算機理論，只需要對下面概念有輕量理解，因為它們會直接提升你的決策品質。</p>
+            <h3>1. 狀態機思維</h3>
+            <pre>idle -> running -> streaming -> done / error / cancelled</pre>
+            <p>這能幫你看出規格是否不完整，也能更快辨認「看起來像當機」的問題。</p>
+            <h3>2. 同步與非同步工作</h3>
+            <pre>長時間模型工作不能阻塞整個使用體驗</pre>
+            <p>這就是為什麼需要 streaming 或 job/polling，也是為什麼 final-only JSON 會讓產品看起來壞掉。</p>
+            <h3>3. 佇列與背壓</h3>
+            <p>你只需要直覺：如果模型吐資料或收到請求的速度，比 UI / backend 吃得還快，系統就會開始延遲、堆積工作，或不穩定。</p>
+            <h3>4. timeout、retry、cancellation</h3>
+            <ul>
+              <li>timeout 不一定代表工作真的停了</li>
+              <li>retry 可能造成重複工作</li>
+              <li>cancel 不一定能立刻停掉底層 worker</li>
+            </ul>
+            <h3>5. 抽象邊界</h3>
+            <pre>不同實作，仍應呈現同一個穩定產品契約</pre>
+            <p>這是保護 local / cloud backend 不致把產品行為拉裂的關鍵。</p>
+            <h3>6. 複雜度控制</h3>
+            <pre>第一階段每多加一個關切點，不確定性就乘上去</pre>
+            <p>這就是為什麼 tool-calling 要延後。</p>
+          `,
+          "section-ignore": `
+            <h2>可以先忽略什麼</h2>
+            <p>你現在可以放心忽略大多數實作細節：</p>
+            <ul>
+              <li>React component 怎麼拆</li>
+              <li>endpoint 程式怎麼寫</li>
+              <li>async generator 細節</li>
+              <li>stream parser 程式</li>
+              <li>SSE 格式細節</li>
+              <li>Python cancellation mechanics</li>
+            </ul>
+            <p>那些是 agent 要處理的實作問題。你只需要判斷方向對不對。</p>
+          `,
+          "section-review": `
+            <h2>你在 review 時該問的問題</h2>
+            <ol>
+              <li>這件事有沒有讓第一階段保持夠小？</li>
+              <li>這件事有沒有讓長聊天輸出更可靠？</li>
+              <li>這件事有沒有保住 <code>local</code> 與 <code>cloud_pickle</code> 的共同契約？</li>
+              <li>這件事有沒有太早引入 tool-calling？</li>
+              <li>這件事是真的降低未來複雜度，還是只是把複雜度搬位置？</li>
+            </ol>
+          `,
+          "section-bottom-line": `
+            <h2>底線結論</h2>
+            <p>對你最有價值的，不是 implementation knowledge。</p>
+            <p>而是 decision knowledge：</p>
+            <ul>
+              <li>先做什麼</li>
+              <li>延後什麼</li>
+              <li>哪些風險才是真的</li>
+              <li>哪些技術選擇是真約束，哪些只是干擾</li>
+            </ul>
+            <div class="callout">
+              <strong>核心判斷：</strong><br>
+              先把第一階段做成可靠的可選模型聊天產品。<br>
+              不要太早把它變成完整 agent。
+            </div>
+          `
+        }
+      }
+    };
+
+    function applyLanguage(language) {
+      const data = translations[language] || translations.en;
+      document.documentElement.lang = data.lang;
+      document.title = data.title;
+      document.getElementById("hero-eyebrow").textContent = data.heroEyebrow;
+      document.getElementById("hero-title").textContent = data.heroTitle;
+      document.getElementById("hero-summary").textContent = data.heroSummary;
+      document.getElementById("hero-grid").innerHTML = data.heroGrid;
+      Object.entries(data.sections).forEach(([id, html]) => {
+        const node = document.getElementById(id);
+        if (node) node.innerHTML = html;
+      });
+      const button = document.getElementById("lang-toggle");
+      button.textContent = data.toggleText;
+      button.setAttribute("aria-label", data.toggleLabel);
+      button.dataset.lang = language;
+      localStorage.setItem("openclaw_web_decision_lang", language);
+    }
+
+    const savedLanguage = localStorage.getItem("openclaw_web_decision_lang");
+    applyLanguage(savedLanguage === "zh" ? "zh" : "en");
+
+    document.getElementById("lang-toggle").addEventListener("click", () => {
+      const current = document.getElementById("lang-toggle").dataset.lang === "zh" ? "zh" : "en";
+      applyLanguage(current === "en" ? "zh" : "en");
+    });
+  </script>
 </body>
 </html>
