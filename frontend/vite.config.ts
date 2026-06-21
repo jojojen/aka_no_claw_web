@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 // The backend command bridge is owned by jojojen/aka_no_claw and runs locally
@@ -8,6 +8,10 @@ const BRIDGE_TARGET = process.env.OPENCLAW_BRIDGE_URL || "http://127.0.0.1:8781"
 
 export default defineConfig({
   plugins: [react()],
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/test-setup.ts"],
+  },
   server: {
     host: process.env.LAN === "1" ? "0.0.0.0" : "127.0.0.1",
     // Local-only single-user tool: phones reach it via mesh/LAN hostnames

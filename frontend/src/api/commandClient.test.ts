@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearSession, loadSession, saveSession } from "./commandClient";
+import { clearSession, loadSession, runMusicAction, runMusicCommand, saveSession } from "./commandClient";
 import { emptySnapshot } from "../session";
 
 function mockFetch(impl: (url: string, init?: RequestInit) => Promise<Response>) {
@@ -96,6 +96,71 @@ describe("clearSession", () => {
       throw new Error("nope");
     });
     const res = await clearSession();
+    expect(res.status).toBe("error");
+  });
+});
+
+// --- music routes (web#3 / #4) --------------------------------------------
+// Backend-returned action buttons (folder nav, song detail, favorites) all
+// route through runMusicAction so the bridge re-runs the same handlers as the
+// Telegram bot. Panel buttons call the same function.
+
+describe("runMusicAction", () => {
+  it("POSTs callback_data to /api/command/music", async () => {
+    let seenUrl = "";
+    let seenBody = "";
+    mockFetch(async (url, init) => {
+      seenUrl = url;
+      seenBody = init?.body as string;
+      return jsonResponse({ status: "ok", message: "正在播放", actions: [] });
+    });
+    const res = await runMusicAction("music:rnd");
+    expect(seenUrl).toBe("/api/command/music");
+    expect(JSON.parse(seenBody).callback_data).toBe("music:rnd");
+    expect(res.status).toBe("ok");
+    expect(res.message).toBe("正在播放");
+  });
+
+  it("backend error response is returned (not thrown) so UI can render it", async () => {
+    mockFetch(async () =>
+      jsonResponse({ status: "error", message: "未知的 callback", actions: [] }),
+    );
+    const res = await runMusicAction("bogus:cb");
+    expect(res.status).toBe("error");
+    expect(res.message).toContain("未知");
+  });
+
+  it("fails soft on network error", async () => {
+    mockFetch(async () => { throw new Error("offline"); });
+    const res = await runMusicAction("music:stop");
+    expect(res.status).toBe("error");
+  });
+});
+
+describe("runMusicCommand", () => {
+  it("POSTs input to /api/command/music", async () => {
+    let seenBody = "";
+    mockFetch(async (_url, init) => {
+      seenBody = init?.body as string;
+      return jsonResponse({ status: "ok", message: "搜尋中", actions: [] });
+    });
+    await runMusicCommand("蒼のワルツ");
+    expect(JSON.parse(seenBody).input).toBe("蒼のワルツ");
+  });
+
+  it("empty input sends empty string (returns music menu from backend)", async () => {
+    let seenBody = "";
+    mockFetch(async (_url, init) => {
+      seenBody = init?.body as string;
+      return jsonResponse({ status: "ok", message: "選單", actions: [] });
+    });
+    await runMusicCommand("");
+    expect(JSON.parse(seenBody).input).toBe("");
+  });
+
+  it("fails soft on network error", async () => {
+    mockFetch(async () => { throw new Error("offline"); });
+    const res = await runMusicCommand("test");
     expect(res.status).toBe("error");
   });
 });

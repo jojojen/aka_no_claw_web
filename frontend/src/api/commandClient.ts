@@ -155,15 +155,15 @@ export async function runMusicAction(callbackData: string): Promise<ActionRespon
 }
 
 async function postMusic(body: Record<string, string>): Promise<ActionResponse> {
-  const res = await fetch(MUSIC_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
   try {
+    const res = await fetch(MUSIC_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
     return (await res.json()) as ActionResponse;
-  } catch {
-    return { status: "error", message: `HTTP ${res.status}` };
+  } catch (err) {
+    return { status: "error", message: String(err) };
   }
 }
 
