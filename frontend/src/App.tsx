@@ -84,8 +84,8 @@ export default function App() {
 
   // Restore the session from the Mac mini on open. A failure (offline / corrupt
   // payload) fails soft: start blank and show an in-app banner, never an alert.
-  // We don't auto-resume polling for any restored job_id — its text is kept as
-  // static history, so an already-expired job can't trigger endless polling.
+  // If a research job was active, attempt to reconnect: done → render result,
+  // running → resume polling, interrupted/not_found → show notice.
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -100,10 +100,52 @@ export default function App() {
         setNotice("無法從本機還原工作階段，已開新對話。");
       }
       setRestored(true);
+
+      // Attempt job reconnect. Music sentinel is never pollable.
+      const jobId = st.activeJobId;
+      if (!jobId || jobId === MUSIC_JOB_ID) return;
+      const targetMsg = [...st.messages].reverse().find(
+        (m) => m.role === "assistant" && m.jobId === jobId,
+      );
+      if (!targetMsg) return; // no message to update → skip silently
+
+      let snap;
+      try {
+        snap = await pollJob(jobId);
+      } catch {
+        return; // network error at restore time — don't break the session
+      }
+      if (!alive) return;
+
+      if (snap.job_status === "done") {
+        const progressText = (snap.progress ?? []).join("\n");
+        setMessages((prev) => prev.map((m) =>
+          m.id === targetMsg.id
+            ? { ...m, text: snap.message || progressText, status: "ok", generating: false, actions: snap.actions ?? [], jobId }
+            : m,
+        ));
+      } else if (snap.job_status === "error" || snap.not_found) {
+        setMessages((prev) => prev.map((m) =>
+          m.id === targetMsg.id
+            ? { ...m, text: snap.error || snap.message || "研究失敗。", status: "error", generating: false }
+            : m,
+        ));
+      } else if (snap.job_status === "interrupted") {
+        setMessages((prev) => prev.map((m) =>
+          m.id === targetMsg.id ? { ...m, generating: false } : m,
+        ));
+        setNotice("研究任務因系統重啟而中斷，請重新執行 /research。");
+      } else if (snap.job_status === "running") {
+        // Resume the polling loop — marks generating=true, updates progress.
+        void resumePolling(jobId, targetMsg.id);
+      }
     })();
     return () => {
       alive = false;
     };
+  // resumePolling is stable (its only dep is patch which has []). Use [] to
+  // avoid a temporal dead zone error from the callback defined later.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist (debounced) whenever the restorable state changes — but only after
@@ -227,6 +269,57 @@ export default function App() {
   );
 
   // Long research runs as a background job; we poll for staged progress so the
+  // Re-attach to an existing in-progress job after a page reload. Takes over
+  // an assistantId that was already rendered by the restore effect.
+  const resumePolling = useCallback(
+    async (jobId: string, assistantId: string) => {
+      setGenerating(true);
+      let cancelled = false;
+      stopPollRef.current = () => { cancelled = true; };
+      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+      try {
+        let consecutiveFailures = 0;
+        while (!cancelled) {
+          await sleep(2000);
+          if (cancelled) break;
+          let snap;
+          try {
+            snap = await pollJob(jobId);
+            consecutiveFailures = 0;
+          } catch {
+            if (++consecutiveFailures >= 30) {
+              patch(assistantId, { text: "與本機 command bridge 失去連線，請稍後重試。", status: "error", generating: false });
+              return;
+            }
+            continue;
+          }
+          const progressText = (snap.progress ?? []).join("\n");
+          if (snap.job_status === "done") {
+            patch(assistantId, { text: snap.message || progressText, status: "ok", generating: false, actions: snap.actions ?? [], jobId });
+            return;
+          }
+          if (snap.job_status === "error" || snap.not_found) {
+            patch(assistantId, { text: snap.error || snap.message || "研究失敗。", status: "error", generating: false });
+            return;
+          }
+          if (snap.job_status === "interrupted") {
+            patch(assistantId, { generating: false });
+            setNotice("研究任務因系統重啟而中斷，請重新執行 /research。");
+            return;
+          }
+          patch(assistantId, { text: progressText || "⏳ 研究進行中…" });
+        }
+        patch(assistantId, { generating: false });
+      } catch (err) {
+        patch(assistantId, { text: `無法連線到本機 command bridge（${String(err)}）`, status: "error", generating: false });
+      } finally {
+        setGenerating(false);
+        stopPollRef.current = null;
+      }
+    },
+    [patch],
+  );
+
   // result survives a phone screen-lock or a dropped connection (龍蝦-style).
   const runPolling = useCallback(
     async (req: WebCommandRequest, assistantId: string) => {

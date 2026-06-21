@@ -68,7 +68,7 @@ export type AsyncStartResponse = {
   message?: string;
 };
 
-export type JobStatus = "running" | "done" | "error";
+export type JobStatus = "running" | "done" | "error" | "interrupted";
 
 // A follow-up button (龍蝦's /research views: 摘要 / 看市價 / 看賣家 …). The
 // callback_data is opaque to the UI — clicking re-invokes the bridge handler.
