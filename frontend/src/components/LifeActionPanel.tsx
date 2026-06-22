@@ -30,7 +30,6 @@ type Props = {
 export function LifeActionPanel({ disabled, onAction }: Props) {
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs text-text/50">音樂在 Mac mini 播放，手機只是遙控器。</p>
       <div className="grid grid-cols-2 gap-2">
         {PLAYBACK.map((b) => (
           <FlatActionButton

@@ -17,11 +17,6 @@ describe("LifeActionPanel — music controls (#3)", () => {
     expect(screen.getByText(/加入最愛/)).toBeDefined();
   });
 
-  it("shows a visible Mac mini hint — user knows audio plays on the Mac not the phone", () => {
-    render(<LifeActionPanel disabled={false} onAction={vi.fn()} />);
-    expect(screen.getByText(/Mac mini/)).toBeDefined();
-  });
-
   it("disables every button when disabled=true", () => {
     render(<LifeActionPanel disabled={true} onAction={vi.fn()} />);
     const buttons = screen.getAllByRole("button");
