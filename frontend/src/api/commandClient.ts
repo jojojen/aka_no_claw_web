@@ -19,6 +19,7 @@ const ASYNC_URL = "/api/command/async";
 const POLL_URL = "/api/command/poll";
 const ACTION_URL = "/api/command/action";
 const MUSIC_URL = "/api/command/music";
+const NOW_PLAYING_URL = "/api/command/music/now";
 const BLUETOOTH_URL = "/api/command/bluetooth";
 const SESSION_URL = "/api/command/session";
 const RESTART_ALL_URL = "/api/command/restartall";
@@ -167,6 +168,20 @@ async function postMusic(body: Record<string, string>): Promise<ActionResponse> 
     return (await res.json()) as ActionResponse;
   } catch (err) {
     return { status: "error", message: String(err) };
+  }
+}
+
+// Name of the song the Mac mini is currently playing, or null when idle. Used by
+// 生活 mode to show a small now-playing strip. Fails soft to null so a dropped
+// poll never disrupts the panel.
+export async function getNowPlaying(): Promise<string | null> {
+  try {
+    const res = await fetch(NOW_PLAYING_URL);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { status?: string; name?: string | null };
+    return typeof data?.name === "string" ? data.name : null;
+  } catch {
+    return null;
   }
 }
 

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearSession,
+  getNowPlaying,
   loadSession,
   restartAll,
   runBluetoothAction,
@@ -200,6 +201,34 @@ describe("runMusicCommand", () => {
     mockFetch(async () => { throw new Error("offline"); });
     const res = await runMusicCommand("test");
     expect(res.status).toBe("error");
+  });
+});
+
+describe("getNowPlaying", () => {
+  it("returns the song name from /api/command/music/now", async () => {
+    let seenUrl = "";
+    mockFetch(async (url) => {
+      seenUrl = url;
+      return jsonResponse({ status: "ok", name: "蒼のワルツ" });
+    });
+    const name = await getNowPlaying();
+    expect(seenUrl).toBe("/api/command/music/now");
+    expect(name).toBe("蒼のワルツ");
+  });
+
+  it("returns null when nothing is playing", async () => {
+    mockFetch(async () => jsonResponse({ status: "ok", name: null }));
+    expect(await getNowPlaying()).toBeNull();
+  });
+
+  it("fails soft to null on HTTP error", async () => {
+    mockFetch(async () => jsonResponse({}, false, 500));
+    expect(await getNowPlaying()).toBeNull();
+  });
+
+  it("fails soft to null on network error", async () => {
+    mockFetch(async () => { throw new Error("offline"); });
+    expect(await getNowPlaying()).toBeNull();
   });
 });
 

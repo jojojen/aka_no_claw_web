@@ -22,6 +22,7 @@ vi.mock("./api/commandClient", () => ({
   saveSession: vi.fn().mockResolvedValue({ status: "ok" }),
   clearSession: vi.fn(),
   pollJob: vi.fn(),
+  getNowPlaying: vi.fn().mockResolvedValue(null),
   sendCommand: vi.fn(),
   streamCommand: vi.fn(),
   startAsyncCommand: vi.fn(),

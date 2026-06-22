@@ -9,6 +9,7 @@ import type {
 } from "./types/command";
 import {
   clearSession,
+  getNowPlaying,
   loadSession,
   pollJob,
   runAction,
@@ -71,6 +72,7 @@ export default function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
+  const [nowPlaying, setNowPlaying] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const stopPollRef = useRef<(() => void) | null>(null);
 
@@ -170,6 +172,26 @@ export default function App() {
   // Flush any pending write on unmount so a quick close doesn't drop the last
   // snapshot.
   useEffect(() => () => saverRef.current?.flush(), []);
+
+  // 生活 mode: poll the now-playing song so the strip reflects auto-advancing
+  // continuous playback. Only runs while 生活 is open to avoid idle traffic.
+  useEffect(() => {
+    if (mode !== "life") {
+      setNowPlaying(null);
+      return;
+    }
+    let cancelled = false;
+    const tick = async () => {
+      const name = await getNowPlaying();
+      if (!cancelled) setNowPlaying(name);
+    };
+    tick();
+    const id = setInterval(tick, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [mode]);
 
   const patch = useCallback((id: string, partial: Partial<Message>) => {
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...partial } : m)));
@@ -604,62 +626,66 @@ export default function App() {
       <header className="flex items-center justify-between gap-2 border-b border-muted px-4 py-3">
         <h1 className="text-base font-semibold">OpenClaw 本機控制台</h1>
         <div className="flex items-center gap-2">
-          {confirmClear ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-text/70">清除記憶？</span>
+          {/* While one action is in its confirm state, hide the other button so
+              the confirm/cancel controls are easier to tap (web UI request). */}
+          {!confirmRestart &&
+            (confirmClear ? (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-text/70">清除記憶？</span>
+                <button
+                  onClick={onClearMemory}
+                  className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                >
+                  確定清除
+                </button>
+                <button
+                  onClick={() => setConfirmClear(false)}
+                  className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+                >
+                  取消
+                </button>
+              </div>
+            ) : (
               <button
-                onClick={onClearMemory}
-                className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
-              >
-                確定清除
-              </button>
-              <button
-                onClick={() => setConfirmClear(false)}
+                onClick={() => {
+                  setConfirmRestart(false);
+                  setConfirmClear(true);
+                }}
                 className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+                title="刪除本機已儲存的工作階段並清空對話"
               >
-                取消
+                清除記憶
               </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => {
-                setConfirmRestart(false);
-                setConfirmClear(true);
-              }}
-              className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
-              title="刪除本機已儲存的工作階段並清空對話"
-            >
-              清除記憶
-            </button>
-          )}
-          {confirmRestart ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-text/70">重啟龍蝦？</span>
+            ))}
+          {!confirmClear &&
+            (confirmRestart ? (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-text/70">重啟龍蝦？</span>
+                <button
+                  onClick={onRestartAll}
+                  className="rounded bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700"
+                >
+                  確定重啟
+                </button>
+                <button
+                  onClick={() => setConfirmRestart(false)}
+                  className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+                >
+                  取消
+                </button>
+              </div>
+            ) : (
               <button
-                onClick={onRestartAll}
-                className="rounded bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700"
-              >
-                確定重啟
-              </button>
-              <button
-                onClick={() => setConfirmRestart(false)}
+                onClick={() => {
+                  setConfirmClear(false);
+                  setConfirmRestart(true);
+                }}
                 className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+                title="安全重啟龍蝦本機服務"
               >
-                取消
+                重啟龍蝦
               </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => {
-                setConfirmClear(false);
-                setConfirmRestart(true);
-              }}
-              className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
-              title="安全重啟龍蝦本機服務"
-            >
-              重啟龍蝦
-            </button>
-          )}
+            ))}
         </div>
       </header>
 
@@ -696,6 +722,15 @@ export default function App() {
             submode={investmentSubmode}
             onChange={setInvestmentSubmode}
           />
+        </div>
+      )}
+
+      {mode === "life" && nowPlaying && (
+        <div className="flex items-center gap-2 border-b border-muted bg-muted/40 px-4 py-1.5 text-xs text-text/70">
+          <span aria-hidden>🎵</span>
+          <span className="truncate" title={nowPlaying}>
+            正在播放：{nowPlaying}
+          </span>
         </div>
       )}
 

@@ -29,6 +29,9 @@ vi.mock("./api/commandClient", () => ({
   runAction: vi.fn(),
   runMusicAction: vi.fn(),
   runMusicCommand: vi.fn(),
+  runBluetoothAction: vi.fn(),
+  runBluetoothScan: vi.fn(),
+  getNowPlaying: vi.fn().mockResolvedValue(null),
   restartAll: vi.fn(),
 }));
 
@@ -40,6 +43,7 @@ const mockLoad = vi.mocked(client.loadSession);
 const mockSave = vi.mocked(client.saveSession);
 const mockClear = vi.mocked(client.clearSession);
 const mockRestart = vi.mocked(client.restartAll);
+const mockNowPlaying = vi.mocked(client.getNowPlaying);
 
 function sessionWith(text: string) {
   return {
@@ -138,5 +142,44 @@ describe("App — clear memory (#2)", () => {
     fireEvent.click(screen.getByText("確定重啟"));
     await waitFor(() => screen.getByText(/permission denied/));
     expect(screen.getByText("hello clear test")).toBeDefined();
+  });
+
+  // Change #1: confirming one action hides the other button so the confirm /
+  // cancel controls are easier to tap.
+  it("hides 重啟龍蝦 while 清除記憶 is in confirm state", async () => {
+    render(<App />);
+    await waitFor(() => screen.getByText("hello clear test"));
+    fireEvent.click(screen.getByText("清除記憶"));
+    expect(screen.getByText("確定清除")).toBeDefined();
+    expect(screen.queryByText("重啟龍蝦")).toBeNull();
+  });
+
+  it("hides 清除記憶 while 重啟龍蝦 is in confirm state", async () => {
+    render(<App />);
+    await waitFor(() => screen.getByText("hello clear test"));
+    fireEvent.click(screen.getByText("重啟龍蝦"));
+    expect(screen.getByText("確定重啟")).toBeDefined();
+    expect(screen.queryByText("清除記憶")).toBeNull();
+  });
+});
+
+// Change #3: a now-playing strip appears in 生活 mode while a song is playing
+// and collapses when nothing is playing.
+describe("App — now-playing strip (生活 mode)", () => {
+  it("shows the playing song name when 生活 mode is active", async () => {
+    mockNowPlaying.mockResolvedValue("蒼のワルツ");
+    render(<App />);
+    await waitFor(() => screen.getByText("hello clear test"));
+    fireEvent.click(screen.getByText("生活"));
+    await waitFor(() => screen.getByText(/正在播放：蒼のワルツ/));
+  });
+
+  it("hides the strip when nothing is playing", async () => {
+    mockNowPlaying.mockResolvedValue(null);
+    render(<App />);
+    await waitFor(() => screen.getByText("hello clear test"));
+    fireEvent.click(screen.getByText("生活"));
+    await waitFor(() => expect(mockNowPlaying).toHaveBeenCalled());
+    expect(screen.queryByText(/正在播放/)).toBeNull();
   });
 });
