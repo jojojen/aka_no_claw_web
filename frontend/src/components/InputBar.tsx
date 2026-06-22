@@ -48,7 +48,7 @@ export function InputBar({
         placeholder={placeholder}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={onKeyDown}
-        className="flex-1 resize-none rounded border border-muted bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+        className="flex-1 resize-none rounded border border-muted bg-white px-3 py-2 text-base outline-none focus:border-primary"
       />
       {generating ? (
         <FlatActionButton variant="muted" onClick={onStop}>
