@@ -344,6 +344,7 @@ export default function App() {
           return;
         }
         const jobId = start.job_id;
+        patch(assistantId, { jobId, generating: true });
         let consecutiveFailures = 0;
         while (!cancelled) {
           await sleep(2000);

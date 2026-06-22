@@ -2,7 +2,7 @@
 // Uses a synchronous debounce mock (same as clearMemory tests) so saves are
 // immediately observable. pollJob is mocked to control the reconnect path.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 vi.mock("./session", async () => {
   const actual = await vi.importActual<typeof import("./session")>("./session");
@@ -37,6 +37,7 @@ import { emptySnapshot } from "./session";
 const mockLoad = vi.mocked(client.loadSession);
 const mockPoll = vi.mocked(client.pollJob);
 const mockSave = vi.mocked(client.saveSession);
+const mockStartAsync = vi.mocked(client.startAsyncCommand);
 
 const RESEARCH_JOB_ID = "job-abc123";
 const MUSIC_SENTINEL = "__music__";
@@ -180,5 +181,25 @@ describe("App — job reconnect after reload (web#6)", () => {
     render(<App />);
     await waitFor(() => screen.getByText(/找不到可更新的訊息/));
     expect(mockPoll).not.toHaveBeenCalled();
+  });
+
+  it("new async research saves active_job_id immediately after job creation", async () => {
+    mockLoad.mockResolvedValue(emptySession());
+    mockStartAsync.mockResolvedValue({ status: "accepted", job_id: RESEARCH_JOB_ID });
+    mockPoll.mockResolvedValue({ job_status: "running", progress: ["step 1"], message: "", actions: [] });
+
+    render(<App />);
+    await waitFor(() => expect(mockLoad).toHaveBeenCalled());
+    fireEvent.click(screen.getByText("投資研究"));
+    fireEvent.change(screen.getByPlaceholderText(/商品 URL/), {
+      target: { value: "https://example.com/item/1" },
+    });
+    fireEvent.click(screen.getByText("送出"));
+
+    await waitFor(() =>
+      expect(mockSave).toHaveBeenCalledWith(
+        expect.objectContaining({ active_job_id: RESEARCH_JOB_ID }),
+      ),
+    );
   });
 });
