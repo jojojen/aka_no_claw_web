@@ -3,6 +3,7 @@ import type {
   AsyncStartResponse,
   CommandResponse,
   JobPollResponse,
+  RestartAllResponse,
   SessionClearResponse,
   SessionLoadResponse,
   SessionSaveResponse,
@@ -19,6 +20,7 @@ const POLL_URL = "/api/command/poll";
 const ACTION_URL = "/api/command/action";
 const MUSIC_URL = "/api/command/music";
 const SESSION_URL = "/api/command/session";
+const RESTART_ALL_URL = "/api/command/restartall";
 
 // Blocking call — used for short non-chat commands (translation, research).
 export async function sendCommand(req: WebCommandRequest): Promise<CommandResponse> {
@@ -213,6 +215,18 @@ export async function clearSession(): Promise<SessionClearResponse> {
   try {
     const res = await fetch(SESSION_URL, { method: "DELETE" });
     const data = (await res.json()) as SessionClearResponse;
+    return data;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+// POST a local service restart request. The backend replies before it stops the
+// bridge process, so a success response means "scheduled", not "already back".
+export async function restartAll(): Promise<RestartAllResponse> {
+  try {
+    const res = await fetch(RESTART_ALL_URL, { method: "POST" });
+    const data = (await res.json()) as RestartAllResponse;
     return data;
   } catch (err) {
     return { status: "error", message: String(err) };

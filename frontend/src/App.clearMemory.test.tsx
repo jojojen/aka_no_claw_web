@@ -29,6 +29,7 @@ vi.mock("./api/commandClient", () => ({
   runAction: vi.fn(),
   runMusicAction: vi.fn(),
   runMusicCommand: vi.fn(),
+  restartAll: vi.fn(),
 }));
 
 import App from "./App";
@@ -38,6 +39,7 @@ import { emptySnapshot } from "./session";
 const mockLoad = vi.mocked(client.loadSession);
 const mockSave = vi.mocked(client.saveSession);
 const mockClear = vi.mocked(client.clearSession);
+const mockRestart = vi.mocked(client.restartAll);
 
 function sessionWith(text: string) {
   return {
@@ -50,6 +52,7 @@ beforeEach(() => {
   mockLoad.mockResolvedValue(sessionWith("hello clear test"));
   mockSave.mockResolvedValue({ status: "ok" });
   mockClear.mockResolvedValue({ status: "ok" });
+  mockRestart.mockResolvedValue({ status: "ok", message: "已排程重啟龍蝦" });
 });
 
 afterEach(() => {
@@ -107,5 +110,33 @@ describe("App — clear memory (#2)", () => {
                   (snap as { messages: unknown[] }).messages.length === 0,
     );
     expect(emptySaves).toHaveLength(0);
+  });
+
+  it("shows confirm buttons when 重啟龍蝦 is clicked", async () => {
+    render(<App />);
+    await waitFor(() => screen.getByText("hello clear test"));
+    fireEvent.click(screen.getByText("重啟龍蝦"));
+    expect(screen.getByText("確定重啟")).toBeDefined();
+    expect(screen.getByText("取消")).toBeDefined();
+  });
+
+  it("restart success keeps messages and shows scheduled notice", async () => {
+    render(<App />);
+    await waitFor(() => screen.getByText("hello clear test"));
+    fireEvent.click(screen.getByText("重啟龍蝦"));
+    fireEvent.click(screen.getByText("確定重啟"));
+    await waitFor(() => expect(mockRestart).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("hello clear test")).toBeDefined();
+    expect(screen.getByText(/已排程重啟龍蝦/)).toBeDefined();
+  });
+
+  it("restart failure keeps messages and shows error notice", async () => {
+    mockRestart.mockResolvedValueOnce({ status: "error", message: "permission denied" });
+    render(<App />);
+    await waitFor(() => screen.getByText("hello clear test"));
+    fireEvent.click(screen.getByText("重啟龍蝦"));
+    fireEvent.click(screen.getByText("確定重啟"));
+    await waitFor(() => screen.getByText(/permission denied/));
+    expect(screen.getByText("hello clear test")).toBeDefined();
   });
 });

@@ -17,6 +17,7 @@ import {
   saveSession,
   sendCommand,
   startAsyncCommand,
+  restartAll,
   streamCommand,
 } from "./api/commandClient";
 import type { ActionResponse } from "./types/command";
@@ -65,6 +66,7 @@ export default function App() {
   const [restored, setRestored] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmRestart, setConfirmRestart] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const stopPollRef = useRef<(() => void) | null>(null);
 
@@ -532,6 +534,16 @@ export default function App() {
     setNotice(null);
   }, []);
 
+  const onRestartAll = useCallback(async () => {
+    setConfirmRestart(false);
+    const res = await restartAll();
+    if (res.status !== "ok") {
+      setNotice(`重啟龍蝦失敗：${res.message ?? "未知錯誤"}`);
+      return;
+    }
+    setNotice(res.message ?? "已排程重啟龍蝦，請稍候重新連線。");
+  }, []);
+
   // Click a research follow-up button (摘要 / 看市價 / …): switch the view in
   // place, keeping the buttons so the user can flip between views.
   const onAction = useCallback(
@@ -566,31 +578,64 @@ export default function App() {
     <div className="mx-auto flex h-full max-w-content flex-col bg-surface">
       <header className="flex items-center justify-between gap-2 border-b border-muted px-4 py-3">
         <h1 className="text-base font-semibold">OpenClaw 本機控制台</h1>
-        {confirmClear ? (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-text/70">清除記憶？</span>
+        <div className="flex items-center gap-2">
+          {confirmClear ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-text/70">清除記憶？</span>
+              <button
+                onClick={onClearMemory}
+                className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+              >
+                確定清除
+              </button>
+              <button
+                onClick={() => setConfirmClear(false)}
+                className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+              >
+                取消
+              </button>
+            </div>
+          ) : (
             <button
-              onClick={onClearMemory}
-              className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
-            >
-              確定清除
-            </button>
-            <button
-              onClick={() => setConfirmClear(false)}
+              onClick={() => {
+                setConfirmRestart(false);
+                setConfirmClear(true);
+              }}
               className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+              title="刪除本機已儲存的工作階段並清空對話"
             >
-              取消
+              清除記憶
             </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setConfirmClear(true)}
-            className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
-            title="刪除本機已儲存的工作階段並清空對話"
-          >
-            清除記憶
-          </button>
-        )}
+          )}
+          {confirmRestart ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-text/70">重啟龍蝦？</span>
+              <button
+                onClick={onRestartAll}
+                className="rounded bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700"
+              >
+                確定重啟
+              </button>
+              <button
+                onClick={() => setConfirmRestart(false)}
+                className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+              >
+                取消
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setConfirmClear(false);
+                setConfirmRestart(true);
+              }}
+              className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+              title="安全重啟龍蝦本機服務"
+            >
+              重啟龍蝦
+            </button>
+          )}
+        </div>
       </header>
 
       {notice && (

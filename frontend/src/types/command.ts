@@ -123,6 +123,11 @@ export type SessionClearResponse = {
   message?: string;
 };
 
+export type RestartAllResponse = {
+  status: "ok" | "error";
+  message?: string;
+};
+
 // UI-side conversation model (shared across all modes).
 export type MessageRole = "user" | "assistant" | "system";
 

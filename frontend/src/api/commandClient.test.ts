@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearSession, loadSession, runMusicAction, runMusicCommand, saveSession } from "./commandClient";
+import {
+  clearSession,
+  loadSession,
+  restartAll,
+  runMusicAction,
+  runMusicCommand,
+  saveSession,
+} from "./commandClient";
 import { emptySnapshot } from "../session";
 
 function mockFetch(impl: (url: string, init?: RequestInit) => Promise<Response>) {
@@ -97,6 +104,35 @@ describe("clearSession", () => {
     });
     const res = await clearSession();
     expect(res.status).toBe("error");
+  });
+});
+
+describe("restartAll", () => {
+  it("POSTs the restart request and returns ok", async () => {
+    const seen: { url?: string; method?: string } = {};
+    mockFetch(async (url, init) => {
+      seen.url = url;
+      seen.method = init?.method;
+      return jsonResponse({ status: "ok", message: "已排程重啟" });
+    });
+
+    const res = await restartAll();
+
+    expect(seen.url).toBe("/api/command/restartall");
+    expect(seen.method).toBe("POST");
+    expect(res.status).toBe("ok");
+    expect(res.message).toContain("重啟");
+  });
+
+  it("fails soft on a network error", async () => {
+    mockFetch(async () => {
+      throw new Error("offline");
+    });
+
+    const res = await restartAll();
+
+    expect(res.status).toBe("error");
+    expect(res.message).toContain("offline");
   });
 });
 

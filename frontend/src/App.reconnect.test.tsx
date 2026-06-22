@@ -28,6 +28,7 @@ vi.mock("./api/commandClient", () => ({
   runAction: vi.fn(),
   runMusicAction: vi.fn(),
   runMusicCommand: vi.fn(),
+  restartAll: vi.fn(),
 }));
 
 import App from "./App";
