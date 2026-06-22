@@ -61,6 +61,20 @@ function sessionWithJob(jobId: string) {
   };
 }
 
+// Session has active_job_id but no assistant message carrying that jobId.
+function sessionWithJobNoMsg(jobId: string) {
+  return {
+    status: "ok" as const,
+    session: {
+      ...emptySnapshot(),
+      active_job_id: jobId,
+      messages: [
+        { id: "m1", role: "user" as const, text: "研究 https://example.com/item/1" },
+      ],
+    },
+  };
+}
+
 function emptySession() {
   return { status: "ok" as const, session: emptySnapshot() };
 }
@@ -156,8 +170,15 @@ describe("App — job reconnect after reload (web#6)", () => {
     mockLoad.mockResolvedValue(sessionWithJob(RESEARCH_JOB_ID));
     mockPoll.mockRejectedValue(new Error("offline"));
     render(<App />);
-    // Session messages should still be visible even if poll throws.
     await waitFor(() => screen.getByText("研究 https://example.com/item/1"));
     expect(screen.getByText("⏳ 研究進行中…")).toBeDefined();
+    await waitFor(() => screen.getByText(/連線失敗/));
+  });
+
+  it("missing assistant message: shows notice without pollJob call", async () => {
+    mockLoad.mockResolvedValue(sessionWithJobNoMsg(RESEARCH_JOB_ID));
+    render(<App />);
+    await waitFor(() => screen.getByText(/找不到可更新的訊息/));
+    expect(mockPoll).not.toHaveBeenCalled();
   });
 });

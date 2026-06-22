@@ -107,13 +107,17 @@ export default function App() {
       const targetMsg = [...st.messages].reverse().find(
         (m) => m.role === "assistant" && m.jobId === jobId,
       );
-      if (!targetMsg) return; // no message to update → skip silently
+      if (!targetMsg) {
+        setNotice("找到未完成任務，但找不到可更新的訊息，請重新執行 /research。");
+        return;
+      }
 
       let snap;
       try {
         snap = await pollJob(jobId);
       } catch {
-        return; // network error at restore time — don't break the session
+        setNotice("無法確認未完成任務狀態（連線失敗），請稍後重試。");
+        return;
       }
       if (!alive) return;
 
