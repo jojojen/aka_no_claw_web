@@ -31,6 +31,7 @@ vi.mock("./api/commandClient", () => ({
   runMusicCommand: vi.fn(),
   runBluetoothAction: vi.fn(),
   runBluetoothScan: vi.fn(),
+  runIrCommand: vi.fn(),
   restartAll: vi.fn(),
 }));
 

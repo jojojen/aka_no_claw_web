@@ -1,5 +1,5 @@
-// Tests for web#3/#4 (music panel + volume) and web#7 (生活 mode split into
-// 音樂 / 藍牙). Each music button dispatches the same callback_data the Telegram
+// Tests for web#3/#4 (music panel + volume), web#7 (生活 mode split into
+// 音樂 / 藍牙), and the first 家電 IR shortcut. Each music button dispatches the same callback_data the Telegram
 // bot uses, so the bridge runs the identical music/list handlers — the phone
 // never reimplements playback or filesystem logic. The 藍牙 sub-panel only fires
 // the scan trigger; discovered devices come back as backend action buttons.
@@ -11,21 +11,24 @@ function renderPanel(overrides: Partial<{
   disabled: boolean;
   onMusicAction: (cb: string) => void;
   onBluetoothScan: () => void;
+  onAppliancePower: () => void;
 }> = {}) {
   return render(
     <LifeActionPanel
       disabled={overrides.disabled ?? false}
       onMusicAction={overrides.onMusicAction ?? vi.fn()}
       onBluetoothScan={overrides.onBluetoothScan ?? vi.fn()}
+      onAppliancePower={overrides.onAppliancePower ?? vi.fn()}
     />,
   );
 }
 
 describe("LifeActionPanel — category split (#7)", () => {
-  it("shows the 音樂 / 藍牙 category toggles", () => {
+  it("shows the 音樂 / 藍牙 / 家電 category toggles", () => {
     renderPanel();
     expect(screen.getByText(/音樂/)).toBeDefined();
     expect(screen.getByText(/藍牙/)).toBeDefined();
+    expect(screen.getByText(/家電/)).toBeDefined();
   });
 
   it("defaults to the 音樂 sub-panel (music buttons visible, scan hidden)", () => {
@@ -39,6 +42,14 @@ describe("LifeActionPanel — category split (#7)", () => {
     fireEvent.click(screen.getByText("🔵 藍牙"));
     expect(screen.getByText(/掃描藍牙裝置/)).toBeDefined();
     expect(screen.queryByText(/隨機播放/)).toBeNull();
+  });
+
+  it("switches to the 家電 sub-panel when 家電 is clicked", () => {
+    renderPanel();
+    fireEvent.click(screen.getByText("🏠 家電"));
+    expect(screen.getByText(/燈（開關）/)).toBeDefined();
+    expect(screen.queryByText(/隨機播放/)).toBeNull();
+    expect(screen.queryByText(/掃描藍牙裝置/)).toBeNull();
   });
 });
 
@@ -70,7 +81,7 @@ describe("LifeActionPanel — music controls (#3/#4)", () => {
     const buttons = screen
       .getAllByRole("button")
       // category toggles stay enabled so the user can still switch tabs
-      .filter((b) => !/音樂|藍牙/.test(b.textContent ?? ""));
+      .filter((b) => !/音樂|藍牙|家電/.test(b.textContent ?? ""));
     expect(buttons.length).toBeGreaterThan(0);
     buttons.forEach((btn) =>
       expect((btn as HTMLButtonElement).disabled).toBe(true),
@@ -121,5 +132,22 @@ describe("LifeActionPanel — bluetooth sub-panel (#7)", () => {
     fireEvent.click(screen.getByText("🔵 藍牙"));
     const scan = screen.getByText(/掃描藍牙裝置/).closest("button");
     expect((scan as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe("LifeActionPanel — appliance IR sub-panel", () => {
+  it("fires onAppliancePower when 燈（開關） is clicked", () => {
+    const onAppliancePower = vi.fn();
+    renderPanel({ onAppliancePower });
+    fireEvent.click(screen.getByText("🏠 家電"));
+    fireEvent.click(screen.getByText(/燈（開關）/));
+    expect(onAppliancePower).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the appliance button when disabled=true", () => {
+    renderPanel({ disabled: true });
+    fireEvent.click(screen.getByText("🏠 家電"));
+    const power = screen.getByText(/燈（開關）/).closest("button");
+    expect((power as HTMLButtonElement).disabled).toBe(true);
   });
 });

@@ -21,6 +21,7 @@ const ACTION_URL = "/api/command/action";
 const MUSIC_URL = "/api/command/music";
 const NOW_PLAYING_URL = "/api/command/music/now";
 const BLUETOOTH_URL = "/api/command/bluetooth";
+const IR_URL = "/api/command/ir";
 const SESSION_URL = "/api/command/session";
 const RESTART_ALL_URL = "/api/command/restartall";
 
@@ -205,6 +206,25 @@ export async function runBluetoothAction(callbackData: string): Promise<ActionRe
 async function postBluetooth(body: Record<string, string>): Promise<ActionResponse> {
   try {
     const res = await fetch(BLUETOOTH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return (await res.json()) as ActionResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+// --- 生活 mode: IR / home-appliance shortcuts --------------------------------
+// 家電 buttons are command shortcuts only. The OpenClaw bridge owns `/ir` routing,
+// BroadLink discovery/auth, and stored IR payloads.
+export async function runIrCommand(input: string): Promise<ActionResponse> {
+  try {
+    const body = input.startsWith("ir:")
+      ? { callback_data: input }
+      : { input };
+    const res = await fetch(IR_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

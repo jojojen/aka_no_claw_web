@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { FlatActionButton } from "./FlatActionButton";
 
-// 生活 mode now splits into two categories (web#7): 音樂 and 藍牙. The category
+// 生活 mode splits into categories (web#7 + IR controls): 音樂, 藍牙, 家電. The category
 // toggle is local UI state; the actual actions still route through the bridge so
-// the phone never reimplements playback or touches the OS Bluetooth stack.
-type Category = "music" | "bluetooth";
+// the phone never reimplements playback, Bluetooth, or IR logic.
+type Category = "music" | "bluetooth" | "appliance";
 
 // Music controls (web#3 + #4). These are the only hardcoded music buttons;
 // folders/songs/favorites — and the 切換音源 output-device picker (music:dev) —
@@ -29,14 +29,20 @@ type Props = {
   disabled: boolean;
   onMusicAction: (callbackData: string) => void;
   onBluetoothScan: () => void;
+  onAppliancePower: () => void;
 };
 
-export function LifeActionPanel({ disabled, onMusicAction, onBluetoothScan }: Props) {
+export function LifeActionPanel({
+  disabled,
+  onMusicAction,
+  onBluetoothScan,
+  onAppliancePower,
+}: Props) {
   const [category, setCategory] = useState<Category>("music");
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <FlatActionButton
           variant={category === "music" ? "active" : "muted"}
           onClick={() => setCategory("music")}
@@ -49,12 +55,22 @@ export function LifeActionPanel({ disabled, onMusicAction, onBluetoothScan }: Pr
         >
           🔵 藍牙
         </FlatActionButton>
+        <FlatActionButton
+          variant={category === "appliance" ? "active" : "muted"}
+          onClick={() => setCategory("appliance")}
+        >
+          🏠 家電
+        </FlatActionButton>
       </div>
 
-      {category === "music" ? (
+      {category === "music" && (
         <MusicControls disabled={disabled} onAction={onMusicAction} />
-      ) : (
+      )}
+      {category === "bluetooth" && (
         <BluetoothControls disabled={disabled} onScan={onBluetoothScan} />
+      )}
+      {category === "appliance" && (
+        <ApplianceControls disabled={disabled} onPower={onAppliancePower} />
       )}
     </div>
   );
@@ -117,6 +133,24 @@ function BluetoothControls({
     <div className="flex flex-col gap-2">
       <FlatActionButton variant="muted" disabled={disabled} onClick={onScan}>
         🔍 掃描藍牙裝置
+      </FlatActionButton>
+    </div>
+  );
+}
+
+// 家電 currently exposes the first IR shortcut only. The command itself is owned
+// by OpenClaw (`/ir send ceiling_light power`); this button is just a remote.
+function ApplianceControls({
+  disabled,
+  onPower,
+}: {
+  disabled: boolean;
+  onPower: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <FlatActionButton variant="muted" disabled={disabled} onClick={onPower}>
+        💡 燈（開關）
       </FlatActionButton>
     </div>
   );

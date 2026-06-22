@@ -15,6 +15,7 @@ import {
   runAction,
   runBluetoothAction,
   runBluetoothScan,
+  runIrCommand,
   runMusicAction,
   runMusicCommand,
   saveSession,
@@ -39,7 +40,8 @@ const SOURCE = "aka_no_claw_web";
 // endpoint, which needs a real research job id). They are never pollable as jobs.
 const MUSIC_JOB_ID = "__music__";
 const BLUETOOTH_JOB_ID = "__bluetooth__";
-const LIFE_SENTINELS = new Set([MUSIC_JOB_ID, BLUETOOTH_JOB_ID]);
+const APPLIANCE_JOB_ID = "__appliance__";
+const LIFE_SENTINELS = new Set([MUSIC_JOB_ID, BLUETOOTH_JOB_ID, APPLIANCE_JOB_ID]);
 
 let _seq = 0;
 const uid = () => `m${Date.now()}-${_seq++}`;
@@ -490,6 +492,21 @@ export default function App() {
     void runLifeCard(assistantId, () => runBluetoothScan(), BLUETOOTH_JOB_ID);
   }, [generating, runLifeCard]);
 
+  // 家電 button: first IR shortcut for the ceiling light power toggle.
+  const onAppliancePower = useCallback(() => {
+    if (generating) return;
+    const assistantId = uid();
+    setMessages((prev) => [
+      ...prev,
+      { id: assistantId, role: "assistant", text: "", modeLabel: MODE_LABELS.life, generating: true },
+    ]);
+    void runLifeCard(
+      assistantId,
+      () => runIrCommand("/ir send ceiling_light power"),
+      APPLIANCE_JOB_ID,
+    );
+  }, [generating, runLifeCard]);
+
   const onSend = useCallback(
     (text: string) => {
       if (generating) return;
@@ -600,6 +617,10 @@ export default function App() {
       }
       if (jobId === BLUETOOTH_JOB_ID) {
         await runLifeCard(messageId, () => runBluetoothAction(callbackData), BLUETOOTH_JOB_ID);
+        return;
+      }
+      if (jobId === APPLIANCE_JOB_ID) {
+        await runLifeCard(messageId, () => runIrCommand(callbackData), APPLIANCE_JOB_ID);
         return;
       }
       try {
@@ -740,6 +761,7 @@ export default function App() {
             disabled={generating}
             onMusicAction={onMusicPanel}
             onBluetoothScan={onBluetoothScan}
+            onAppliancePower={onAppliancePower}
           />
         </div>
       )}

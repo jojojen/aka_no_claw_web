@@ -6,6 +6,7 @@ import {
   restartAll,
   runBluetoothAction,
   runBluetoothScan,
+  runIrCommand,
   runMusicAction,
   runMusicCommand,
   saveSession,
@@ -287,6 +288,42 @@ describe("runBluetoothAction", () => {
   it("fails soft on network error", async () => {
     mockFetch(async () => { throw new Error("offline"); });
     const res = await runBluetoothAction("bt:scan");
+    expect(res.status).toBe("error");
+  });
+});
+
+// --- IR / appliance shortcut ------------------------------------------------
+
+describe("runIrCommand", () => {
+  it("POSTs the IR slash command to the dedicated IR bridge route", async () => {
+    let seenUrl = "";
+    let seenBody = "";
+    mockFetch(async (url, init) => {
+      seenUrl = url;
+      seenBody = init?.body as string;
+      return jsonResponse({ status: "ok", message: "已送出 IR" });
+    });
+    const res = await runIrCommand("/ir send ceiling_light power");
+    expect(seenUrl).toBe("/api/command/ir");
+    expect(JSON.parse(seenBody)).toEqual({ input: "/ir send ceiling_light power" });
+    expect(res.status).toBe("ok");
+    expect(res.message).toContain("IR");
+  });
+
+  it("POSTs IR callback actions as callback_data", async () => {
+    let seenBody = "";
+    mockFetch(async (_url, init) => {
+      seenBody = init?.body as string;
+      return jsonResponse({ status: "ok", message: "已執行 IR 動作" });
+    });
+    const res = await runIrCommand("ir:s:abc123");
+    expect(JSON.parse(seenBody)).toEqual({ callback_data: "ir:s:abc123" });
+    expect(res.status).toBe("ok");
+  });
+
+  it("fails soft on network error", async () => {
+    mockFetch(async () => { throw new Error("offline"); });
+    const res = await runIrCommand("/ir send ceiling_light power");
     expect(res.status).toBe("error");
   });
 });
