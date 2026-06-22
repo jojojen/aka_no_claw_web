@@ -60,6 +60,11 @@ describe("LifeActionPanel — music controls (#3/#4)", () => {
     expect(screen.getByText(/音量提高/)).toBeDefined();
   });
 
+  it("renders the 切換音源 output-device button", () => {
+    renderPanel();
+    expect(screen.getByText(/切換音源/)).toBeDefined();
+  });
+
   it("disables every music button when disabled=true", () => {
     renderPanel({ disabled: true });
     const buttons = screen
@@ -87,6 +92,7 @@ const DISPATCH_CASES: [RegExp, string][] = [
   [/靜音/, "music:mute"],
   [/音量降低/, "music:lower"],
   [/音量提高/, "music:louder"],
+  [/切換音源/, "music:dev"],
 ];
 
 describe.each(DISPATCH_CASES)(

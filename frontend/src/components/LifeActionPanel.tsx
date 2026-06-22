@@ -7,8 +7,9 @@ import { FlatActionButton } from "./FlatActionButton";
 type Category = "music" | "bluetooth";
 
 // Music controls (web#3 + #4). These are the only hardcoded music buttons;
-// folders/songs/favorites come back as backend action buttons. callback_data
-// mirrors the Telegram bot's music callbacks so the bridge runs the same handlers.
+// folders/songs/favorites — and the 切換音源 output-device picker (music:dev) —
+// come back as backend action buttons. callback_data mirrors the Telegram bot's
+// music callbacks so the bridge runs the same handlers.
 const PLAYBACK: { label: string; callbackData: string }[] = [
   { label: "🔀 隨機播放", callbackData: "music:rnd" },
   { label: "⏹ 停止播放", callbackData: "music:stop" },
@@ -92,6 +93,13 @@ function MusicControls({
           </FlatActionButton>
         ))}
       </div>
+      <FlatActionButton
+        variant="muted"
+        disabled={disabled}
+        onClick={() => onAction("music:dev")}
+      >
+        🔈 切換音源
+      </FlatActionButton>
     </div>
   );
 }
