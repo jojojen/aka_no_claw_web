@@ -1,14 +1,50 @@
-// Tests for web#3 (生活 mode music panel) and web#4 (volume controls).
-// Each panel button dispatches the same callback_data the Telegram bot uses,
-// so the bridge runs the identical music/list handlers — the phone never
-// reimplements playback or filesystem logic.
+// Tests for web#3/#4 (music panel + volume) and web#7 (生活 mode split into
+// 音樂 / 藍牙). Each music button dispatches the same callback_data the Telegram
+// bot uses, so the bridge runs the identical music/list handlers — the phone
+// never reimplements playback or filesystem logic. The 藍牙 sub-panel only fires
+// the scan trigger; discovered devices come back as backend action buttons.
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { LifeActionPanel } from "./LifeActionPanel";
 
-describe("LifeActionPanel — music controls (#3)", () => {
+function renderPanel(overrides: Partial<{
+  disabled: boolean;
+  onMusicAction: (cb: string) => void;
+  onBluetoothScan: () => void;
+}> = {}) {
+  return render(
+    <LifeActionPanel
+      disabled={overrides.disabled ?? false}
+      onMusicAction={overrides.onMusicAction ?? vi.fn()}
+      onBluetoothScan={overrides.onBluetoothScan ?? vi.fn()}
+    />,
+  );
+}
+
+describe("LifeActionPanel — category split (#7)", () => {
+  it("shows the 音樂 / 藍牙 category toggles", () => {
+    renderPanel();
+    expect(screen.getByText(/音樂/)).toBeDefined();
+    expect(screen.getByText(/藍牙/)).toBeDefined();
+  });
+
+  it("defaults to the 音樂 sub-panel (music buttons visible, scan hidden)", () => {
+    renderPanel();
+    expect(screen.getByText(/隨機播放/)).toBeDefined();
+    expect(screen.queryByText(/掃描藍牙裝置/)).toBeNull();
+  });
+
+  it("switches to the 藍牙 sub-panel when 藍牙 is clicked", () => {
+    renderPanel();
+    fireEvent.click(screen.getByText("🔵 藍牙"));
+    expect(screen.getByText(/掃描藍牙裝置/)).toBeDefined();
+    expect(screen.queryByText(/隨機播放/)).toBeNull();
+  });
+});
+
+describe("LifeActionPanel — music controls (#3/#4)", () => {
   it("renders all 6 playback action buttons", () => {
-    render(<LifeActionPanel disabled={false} onAction={vi.fn()} />);
+    renderPanel();
     expect(screen.getByText(/隨機播放/)).toBeDefined();
     expect(screen.getByText(/停止播放/)).toBeDefined();
     expect(screen.getByText(/瀏覽全部歌曲/)).toBeDefined();
@@ -17,9 +53,19 @@ describe("LifeActionPanel — music controls (#3)", () => {
     expect(screen.getByText(/加入最愛/)).toBeDefined();
   });
 
-  it("disables every button when disabled=true", () => {
-    render(<LifeActionPanel disabled={true} onAction={vi.fn()} />);
-    const buttons = screen.getAllByRole("button");
+  it("renders 靜音, 音量降低, 音量提高", () => {
+    renderPanel();
+    expect(screen.getByText(/靜音/)).toBeDefined();
+    expect(screen.getByText(/音量降低/)).toBeDefined();
+    expect(screen.getByText(/音量提高/)).toBeDefined();
+  });
+
+  it("disables every music button when disabled=true", () => {
+    renderPanel({ disabled: true });
+    const buttons = screen
+      .getAllByRole("button")
+      // category toggles stay enabled so the user can still switch tabs
+      .filter((b) => !/音樂|藍牙/.test(b.textContent ?? ""));
     expect(buttons.length).toBeGreaterThan(0);
     buttons.forEach((btn) =>
       expect((btn as HTMLButtonElement).disabled).toBe(true),
@@ -27,18 +73,10 @@ describe("LifeActionPanel — music controls (#3)", () => {
   });
 });
 
-describe("LifeActionPanel — volume controls (#4)", () => {
-  it("renders 靜音, 音量降低, 音量提高", () => {
-    render(<LifeActionPanel disabled={false} onAction={vi.fn()} />);
-    expect(screen.getByText(/靜音/)).toBeDefined();
-    expect(screen.getByText(/音量降低/)).toBeDefined();
-    expect(screen.getByText(/音量提高/)).toBeDefined();
-  });
-});
-
-// Dispatch table: every hardcoded panel button must fire the right callback_data.
-// Folder navigation, song detail, and favorites are backend-driven action buttons
-// (not hardcoded here) and are exercised via the commandClient music tests.
+// Dispatch table: every hardcoded music button must fire the right callback_data
+// through onMusicAction. Folder navigation, song detail, and favorites are
+// backend-driven action buttons (not hardcoded here) and are exercised via the
+// commandClient music tests.
 const DISPATCH_CASES: [RegExp, string][] = [
   [/隨機播放/, "music:rnd"],
   [/停止播放/, "music:stop"],
@@ -46,19 +84,36 @@ const DISPATCH_CASES: [RegExp, string][] = [
   [/最愛清單/, "pg:mb:0:r"],
   [/播放最愛/, "music:pb"],
   [/加入最愛/, "music:now"],
-  [/靜音/, "music:mute"],       // #4
-  [/音量降低/, "music:lower"],  // #4
-  [/音量提高/, "music:louder"], // #4
+  [/靜音/, "music:mute"],
+  [/音量降低/, "music:lower"],
+  [/音量提高/, "music:louder"],
 ];
 
 describe.each(DISPATCH_CASES)(
   "clicking %s dispatches callbackData %s",
   (pattern, cbData) => {
-    it("dispatches the correct callback_data to onAction", () => {
-      const onAction = vi.fn();
-      render(<LifeActionPanel disabled={false} onAction={onAction} />);
+    it("dispatches the correct callback_data to onMusicAction", () => {
+      const onMusicAction = vi.fn();
+      renderPanel({ onMusicAction });
       fireEvent.click(screen.getByText(pattern));
-      expect(onAction).toHaveBeenCalledWith(cbData);
+      expect(onMusicAction).toHaveBeenCalledWith(cbData);
     });
   },
 );
+
+describe("LifeActionPanel — bluetooth sub-panel (#7)", () => {
+  it("fires onBluetoothScan when the scan button is clicked", () => {
+    const onBluetoothScan = vi.fn();
+    renderPanel({ onBluetoothScan });
+    fireEvent.click(screen.getByText("🔵 藍牙"));
+    fireEvent.click(screen.getByText(/掃描藍牙裝置/));
+    expect(onBluetoothScan).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the scan button when disabled=true", () => {
+    renderPanel({ disabled: true });
+    fireEvent.click(screen.getByText("🔵 藍牙"));
+    const scan = screen.getByText(/掃描藍牙裝置/).closest("button");
+    expect((scan as HTMLButtonElement).disabled).toBe(true);
+  });
+});

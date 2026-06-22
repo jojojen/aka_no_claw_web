@@ -19,6 +19,7 @@ const ASYNC_URL = "/api/command/async";
 const POLL_URL = "/api/command/poll";
 const ACTION_URL = "/api/command/action";
 const MUSIC_URL = "/api/command/music";
+const BLUETOOTH_URL = "/api/command/bluetooth";
 const SESSION_URL = "/api/command/session";
 const RESTART_ALL_URL = "/api/command/restartall";
 
@@ -159,6 +160,36 @@ export async function runMusicAction(callbackData: string): Promise<ActionRespon
 async function postMusic(body: Record<string, string>): Promise<ActionResponse> {
   try {
     const res = await fetch(MUSIC_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return (await res.json()) as ActionResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+// --- 生活 mode: bluetooth control surface (aka_no_claw#38 / web#7) ----------
+// Same remote-controller model as music: the browser never touches the OS
+// Bluetooth stack. An empty body scans devices; a callback_data connects/refreshes.
+// Device buttons carry backend-generated opaque tokens — the UI never builds MACs.
+
+// Scan Bluetooth devices and return the device list + connect buttons.
+export async function runBluetoothScan(): Promise<ActionResponse> {
+  return postBluetooth({});
+}
+
+// Re-invoke a bluetooth callback button (connect a device / re-scan). The
+// callback_data is opaque to the UI; the backend resolves the token to a MAC and
+// re-validates it before connecting.
+export async function runBluetoothAction(callbackData: string): Promise<ActionResponse> {
+  return postBluetooth({ callback_data: callbackData });
+}
+
+async function postBluetooth(body: Record<string, string>): Promise<ActionResponse> {
+  try {
+    const res = await fetch(BLUETOOTH_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

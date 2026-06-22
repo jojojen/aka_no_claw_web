@@ -3,6 +3,8 @@ import {
   clearSession,
   loadSession,
   restartAll,
+  runBluetoothAction,
+  runBluetoothScan,
   runMusicAction,
   runMusicCommand,
   saveSession,
@@ -197,6 +199,65 @@ describe("runMusicCommand", () => {
   it("fails soft on network error", async () => {
     mockFetch(async () => { throw new Error("offline"); });
     const res = await runMusicCommand("test");
+    expect(res.status).toBe("error");
+  });
+});
+
+// --- bluetooth routes (aka_no_claw#38 / web#7) -----------------------------
+// Same remote-controller model as music: an empty body scans devices, a
+// callback_data connects/refreshes. Device buttons carry backend opaque tokens
+// (never MACs), so the UI just forwards whatever callback_data it was handed.
+
+describe("runBluetoothScan", () => {
+  it("POSTs an empty body to /api/command/bluetooth", async () => {
+    let seenUrl = "";
+    let seenBody = "";
+    mockFetch(async (url, init) => {
+      seenUrl = url;
+      seenBody = init?.body as string;
+      return jsonResponse({ status: "ok", message: "藍牙裝置", actions: [] });
+    });
+    const res = await runBluetoothScan();
+    expect(seenUrl).toBe("/api/command/bluetooth");
+    expect(JSON.parse(seenBody)).toEqual({});
+    expect(res.status).toBe("ok");
+  });
+
+  it("fails soft on network error", async () => {
+    mockFetch(async () => { throw new Error("offline"); });
+    const res = await runBluetoothScan();
+    expect(res.status).toBe("error");
+  });
+});
+
+describe("runBluetoothAction", () => {
+  it("POSTs callback_data to /api/command/bluetooth", async () => {
+    let seenUrl = "";
+    let seenBody = "";
+    mockFetch(async (url, init) => {
+      seenUrl = url;
+      seenBody = init?.body as string;
+      return jsonResponse({ status: "ok", message: "已連線：XGIMI Z8X", actions: [] });
+    });
+    const res = await runBluetoothAction("bt:c:deadbeefdeadbeef");
+    expect(seenUrl).toBe("/api/command/bluetooth");
+    expect(JSON.parse(seenBody).callback_data).toBe("bt:c:deadbeefdeadbeef");
+    expect(res.status).toBe("ok");
+    expect(res.message).toContain("已連線");
+  });
+
+  it("backend error response is returned (not thrown)", async () => {
+    mockFetch(async () =>
+      jsonResponse({ status: "error", message: "請重新掃描", actions: [] }),
+    );
+    const res = await runBluetoothAction("bt:c:stale");
+    expect(res.status).toBe("error");
+    expect(res.message).toContain("重新掃描");
+  });
+
+  it("fails soft on network error", async () => {
+    mockFetch(async () => { throw new Error("offline"); });
+    const res = await runBluetoothAction("bt:scan");
     expect(res.status).toBe("error");
   });
 });

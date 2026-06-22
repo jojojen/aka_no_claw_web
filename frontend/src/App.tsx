@@ -12,6 +12,8 @@ import {
   loadSession,
   pollJob,
   runAction,
+  runBluetoothAction,
+  runBluetoothScan,
   runMusicAction,
   runMusicCommand,
   saveSession,
@@ -31,10 +33,12 @@ import { InputBar } from "./components/InputBar";
 
 const SOURCE = "aka_no_claw_web";
 
-// Sentinel jobId marking a 生活-mode music message, so its action buttons stay
-// enabled and route back through the music endpoint (not the research action
-// endpoint, which needs a real research job id).
+// Sentinel jobIds marking 生活-mode cards, so their action buttons stay enabled
+// and route back through the music / bluetooth endpoints (not the research action
+// endpoint, which needs a real research job id). They are never pollable as jobs.
 const MUSIC_JOB_ID = "__music__";
+const BLUETOOTH_JOB_ID = "__bluetooth__";
+const LIFE_SENTINELS = new Set([MUSIC_JOB_ID, BLUETOOTH_JOB_ID]);
 
 let _seq = 0;
 const uid = () => `m${Date.now()}-${_seq++}`;
@@ -103,9 +107,9 @@ export default function App() {
       }
       setRestored(true);
 
-      // Attempt job reconnect. Music sentinel is never pollable.
+      // Attempt job reconnect. 生活 sentinels (music/bluetooth) are never pollable.
       const jobId = st.activeJobId;
-      if (!jobId || jobId === MUSIC_JOB_ID) return;
+      if (!jobId || LIFE_SENTINELS.has(jobId)) return;
       const targetMsg = [...st.messages].reverse().find(
         (m) => m.role === "assistant" && m.jobId === jobId,
       );
@@ -403,12 +407,16 @@ export default function App() {
     [patch],
   );
 
-  // 生活 mode: run a music interaction (text query or callback button) and
-  // render the backend's text + action buttons into the given message. The
-  // MUSIC_JOB_ID sentinel keeps the returned buttons live and routes their
-  // clicks back through onAction → runMusicAction.
-  const runMusic = useCallback(
-    async (assistantId: string, call: () => Promise<ActionResponse>) => {
+  // 生活 mode: run a music/bluetooth interaction (text query or callback button)
+  // and render the backend's text + action buttons into the given message. The
+  // sentinel jobId keeps the returned buttons live and routes their clicks back
+  // through onAction → runMusicAction / runBluetoothAction.
+  const runLifeCard = useCallback(
+    async (
+      assistantId: string,
+      call: () => Promise<ActionResponse>,
+      sentinel: string,
+    ) => {
       setGenerating(true);
       try {
         const res = await call();
@@ -417,7 +425,7 @@ export default function App() {
           status: res.status === "error" ? "error" : "ok",
           modeLabel: MODE_LABELS.life,
           actions: res.actions && res.actions.length ? res.actions : undefined,
-          jobId: MUSIC_JOB_ID,
+          jobId: sentinel,
           generating: false,
         });
       } catch (err) {
@@ -443,10 +451,22 @@ export default function App() {
         ...prev,
         { id: assistantId, role: "assistant", text: "", modeLabel: MODE_LABELS.life, generating: true },
       ]);
-      void runMusic(assistantId, () => runMusicAction(callbackData));
+      void runLifeCard(assistantId, () => runMusicAction(callbackData), MUSIC_JOB_ID);
     },
-    [generating, runMusic],
+    [generating, runLifeCard],
   );
+
+  // 藍牙 scan button: append a fresh card and fill it with the scanned device
+  // buttons (each connects via runBluetoothAction on tap).
+  const onBluetoothScan = useCallback(() => {
+    if (generating) return;
+    const assistantId = uid();
+    setMessages((prev) => [
+      ...prev,
+      { id: assistantId, role: "assistant", text: "", modeLabel: MODE_LABELS.life, generating: true },
+    ]);
+    void runLifeCard(assistantId, () => runBluetoothScan(), BLUETOOTH_JOB_ID);
+  }, [generating, runLifeCard]);
 
   const onSend = useCallback(
     (text: string) => {
@@ -471,7 +491,7 @@ export default function App() {
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
 
       if (mode === "life") {
-        void runMusic(assistantId, () => runMusicCommand(text));
+        void runLifeCard(assistantId, () => runMusicCommand(text), MUSIC_JOB_ID);
         return;
       }
 
@@ -487,7 +507,7 @@ export default function App() {
         void runBlocking(req, assistantId, label);
       }
     },
-    [generating, mode, investmentSubmode, buildRequest, runStreaming, runPolling, runBlocking, runMusic],
+    [generating, mode, investmentSubmode, buildRequest, runStreaming, runPolling, runBlocking, runLifeCard],
   );
 
   const onSelectImage = useCallback(
@@ -549,10 +569,15 @@ export default function App() {
   const onAction = useCallback(
     async (messageId: string, jobId: string, callbackData: string) => {
       patch(messageId, { generating: true });
-      // 生活 music buttons: re-render this message in place via the music route
-      // (folder/song/favorite navigation, volume), not the research endpoint.
+      // 生活 cards re-render in place via their own route, not the research
+      // endpoint: music buttons (folder/song/favorite/volume) and bluetooth
+      // buttons (connect a device / re-scan).
       if (jobId === MUSIC_JOB_ID) {
-        await runMusic(messageId, () => runMusicAction(callbackData));
+        await runLifeCard(messageId, () => runMusicAction(callbackData), MUSIC_JOB_ID);
+        return;
+      }
+      if (jobId === BLUETOOTH_JOB_ID) {
+        await runLifeCard(messageId, () => runBluetoothAction(callbackData), BLUETOOTH_JOB_ID);
         return;
       }
       try {
@@ -571,7 +596,7 @@ export default function App() {
         });
       }
     },
-    [patch, runMusic],
+    [patch, runLifeCard],
   );
 
   return (
@@ -676,7 +701,11 @@ export default function App() {
 
       {mode === "life" && (
         <div className="border-b border-muted px-3 py-3">
-          <LifeActionPanel disabled={generating} onAction={onMusicPanel} />
+          <LifeActionPanel
+            disabled={generating}
+            onMusicAction={onMusicPanel}
+            onBluetoothScan={onBluetoothScan}
+          />
         </div>
       )}
 

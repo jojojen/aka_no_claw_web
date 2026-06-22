@@ -28,6 +28,8 @@ vi.mock("./api/commandClient", () => ({
   runAction: vi.fn(),
   runMusicAction: vi.fn(),
   runMusicCommand: vi.fn(),
+  runBluetoothAction: vi.fn(),
+  runBluetoothScan: vi.fn(),
   restartAll: vi.fn(),
 }));
 
@@ -42,6 +44,7 @@ const mockStartAsync = vi.mocked(client.startAsyncCommand);
 
 const RESEARCH_JOB_ID = "job-abc123";
 const MUSIC_SENTINEL = "__music__";
+const BLUETOOTH_SENTINEL = "__bluetooth__";
 
 function sessionWithJob(jobId: string) {
   return {
@@ -100,6 +103,13 @@ describe("App — job reconnect after reload (web#6)", () => {
 
   it("no reconnect for music sentinel __music__", async () => {
     mockLoad.mockResolvedValue(sessionWithJob(MUSIC_SENTINEL));
+    render(<App />);
+    await waitFor(() => expect(mockLoad).toHaveBeenCalled());
+    expect(mockPoll).not.toHaveBeenCalled();
+  });
+
+  it("no reconnect for bluetooth sentinel __bluetooth__", async () => {
+    mockLoad.mockResolvedValue(sessionWithJob(BLUETOOTH_SENTINEL));
     render(<App />);
     await waitFor(() => expect(mockLoad).toHaveBeenCalled());
     expect(mockPoll).not.toHaveBeenCalled();
