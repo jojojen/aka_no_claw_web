@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   ChatBackend,
+  ChatHistoryItem,
   Message,
   Mode,
   SessionSnapshot,
@@ -25,7 +26,14 @@ import {
   streamCommand,
 } from "./api/commandClient";
 import type { ActionResponse } from "./types/command";
-import { debounce, fromSnapshot, toSnapshot } from "./session";
+import {
+  buildChatHistory,
+  CONVERSATION_ID,
+  debounce,
+  fromSnapshot,
+  getOrCreateSessionId,
+  toSnapshot,
+} from "./session";
 import { ModeToggle } from "./components/ModeToggle";
 import { ChatBackendSelector } from "./components/ChatBackendSelector";
 import { InvestmentActionPanel } from "./components/InvestmentActionPanel";
@@ -219,7 +227,7 @@ export default function App() {
   }, []);
 
   const buildRequest = useCallback(
-    (text: string): WebCommandRequest => {
+    (text: string, history: ChatHistoryItem[] = []): WebCommandRequest => {
       if (mode === "chat") {
         return {
           mode: "chat",
@@ -228,6 +236,9 @@ export default function App() {
           chat_backend: chatBackend,
           attachments: [],
           source: SOURCE,
+          history,
+          session_id: getOrCreateSessionId(),
+          conversation_id: CONVERSATION_ID,
         };
       }
       if (mode === "translation") {
@@ -529,7 +540,6 @@ export default function App() {
   const onSend = useCallback(
     (text: string) => {
       if (generating) return;
-      const userMsg: Message = { id: uid(), role: "user", text };
       const label =
         mode === "chat"
           ? MODE_LABELS.chat
@@ -538,6 +548,7 @@ export default function App() {
             : mode === "life"
               ? MODE_LABELS.life
               : MODE_LABELS[investmentSubmode];
+      const userMsg: Message = { id: uid(), role: "user", text, modeLabel: label };
       const assistantId = uid();
       const assistantMsg: Message = {
         id: assistantId,
@@ -553,7 +564,8 @@ export default function App() {
         return;
       }
 
-      const req = buildRequest(text);
+      const history = mode === "chat" ? buildChatHistory(messages) : [];
+      const req = buildRequest(text, history);
       if (mode === "chat") {
         void runStreaming(req, assistantId);
       } else if (
@@ -565,7 +577,7 @@ export default function App() {
         void runBlocking(req, assistantId, label);
       }
     },
-    [generating, mode, investmentSubmode, buildRequest, runStreaming, runPolling, runBlocking, runLifeCard],
+    [generating, mode, investmentSubmode, messages, buildRequest, runStreaming, runPolling, runBlocking, runLifeCard],
   );
 
   const onSelectImage = useCallback(

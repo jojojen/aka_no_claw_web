@@ -20,6 +20,14 @@ export type Attachment = {
   data_base64?: string;
 };
 
+// One prior visible chat turn sent inline so the bridge can answer follow-ups
+// in context (aka_no_claw#44). Best-effort context only — the bridge sanitizes
+// and trims it server-side.
+export type ChatHistoryItem = {
+  role: MessageRole;
+  content: string;
+};
+
 export type WebCommandRequest = {
   mode: Mode;
   submode?: Submode | null;
@@ -27,6 +35,10 @@ export type WebCommandRequest = {
   chat_backend?: ChatBackend;
   attachments?: Attachment[];
   source: string;
+  // Chat continuity (#44): recent turns + stable ids. Only sent for chat mode.
+  history?: ChatHistoryItem[];
+  session_id?: string;
+  conversation_id?: string;
 };
 
 export type ResponseStatus = "ok" | "partial" | "error" | "unsupported";

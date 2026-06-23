@@ -8,6 +8,7 @@
 
 import type {
   ChatBackend,
+  ChatHistoryItem,
   Message,
   MessageRole,
   Mode,
@@ -15,6 +16,51 @@ import type {
   SessionSnapshot,
   Submode,
 } from "./types/command";
+
+// Stable per-browser ids for chat continuity (#44). The session id survives
+// reloads via localStorage; conversation id is a single rolling thread for now.
+const SESSION_ID_KEY = "akanoclaw.web.session_id";
+export const CONVERSATION_ID = "default";
+// Only chat bubbles carry this label; history must never leak other modes.
+const CHAT_MODE_LABEL = "Chat";
+const DEFAULT_HISTORY_TURNS = 10;
+const DEFAULT_HISTORY_CHARS = 4000;
+
+export function getOrCreateSessionId(): string {
+  try {
+    const existing = localStorage.getItem(SESSION_ID_KEY);
+    if (existing) return existing;
+    const id =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `sess-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(SESSION_ID_KEY, id);
+    return id;
+  } catch {
+    // Private mode / storage disabled: fall back to an ephemeral id.
+    return `sess-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
+// Extract recent chat turns to send as inline context. Only real, finished chat
+// bubbles (not the in-flight assistant placeholder, not other modes) qualify.
+export function buildChatHistory(
+  messages: Message[],
+  opts: { maxTurns?: number; maxChars?: number } = {},
+): ChatHistoryItem[] {
+  const maxTurns = opts.maxTurns ?? DEFAULT_HISTORY_TURNS;
+  const maxChars = opts.maxChars ?? DEFAULT_HISTORY_CHARS;
+  const turns: ChatHistoryItem[] = [];
+  for (const m of messages) {
+    if (m.modeLabel !== CHAT_MODE_LABEL) continue;
+    if (m.generating) continue;
+    if (m.role !== "user" && m.role !== "assistant") continue;
+    const content = m.text.trim();
+    if (!content) continue;
+    turns.push({ role: m.role, content: content.slice(0, maxChars) });
+  }
+  return turns.slice(-maxTurns);
+}
 
 const MODES: readonly Mode[] = ["chat", "translation", "investment", "life"];
 const BACKENDS: readonly ChatBackend[] = ["local", "cloud_pickle"];

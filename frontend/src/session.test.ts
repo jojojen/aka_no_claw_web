@@ -1,9 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Message, SessionSnapshot } from "./types/command";
 import {
+  buildChatHistory,
   debounce,
   emptySnapshot,
   fromSnapshot,
+  getOrCreateSessionId,
   toSnapshot,
 } from "./session";
 
@@ -126,6 +128,61 @@ describe("emptySnapshot", () => {
       investment_submode: null,
       active_job_id: null,
     });
+  });
+});
+
+describe("buildChatHistory — inline chat context (#44)", () => {
+  it("keeps only finished chat user/assistant turns, in order", () => {
+    const messages: Message[] = [
+      { id: "1", role: "user", text: "初音是誰", modeLabel: "Chat" },
+      { id: "2", role: "assistant", text: "虛擬歌手", modeLabel: "Chat" },
+      { id: "3", role: "user", text: "她有哪些歌", modeLabel: "Chat" },
+    ];
+    expect(buildChatHistory(messages)).toEqual([
+      { role: "user", content: "初音是誰" },
+      { role: "assistant", content: "虛擬歌手" },
+      { role: "user", content: "她有哪些歌" },
+    ]);
+  });
+
+  it("excludes non-chat modes, empty text, and in-flight bubbles", () => {
+    const messages: Message[] = [
+      { id: "1", role: "user", text: "翻譯這個", modeLabel: "翻譯" },
+      { id: "2", role: "user", text: "  ", modeLabel: "Chat" },
+      { id: "3", role: "assistant", text: "", modeLabel: "Chat", generating: true },
+      { id: "4", role: "user", text: "保留我", modeLabel: "Chat" },
+    ];
+    expect(buildChatHistory(messages)).toEqual([{ role: "user", content: "保留我" }]);
+  });
+
+  it("trims to the most recent maxTurns and caps content length", () => {
+    const messages: Message[] = Array.from({ length: 14 }, (_, i) => ({
+      id: String(i),
+      role: "user" as const,
+      text: `m${i}`,
+      modeLabel: "Chat",
+    }));
+    const hist = buildChatHistory(messages, { maxTurns: 10, maxChars: 4000 });
+    expect(hist).toHaveLength(10);
+    expect(hist[hist.length - 1].content).toBe("m13");
+
+    const long = buildChatHistory(
+      [{ id: "x", role: "user", text: "a".repeat(50), modeLabel: "Chat" }],
+      { maxChars: 10 },
+    );
+    expect(long[0].content).toHaveLength(10);
+  });
+});
+
+describe("getOrCreateSessionId — stable per-browser id (#44)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("creates an id once and reuses it on subsequent calls", () => {
+    const first = getOrCreateSessionId();
+    expect(first).toBeTruthy();
+    expect(getOrCreateSessionId()).toBe(first);
   });
 });
 
