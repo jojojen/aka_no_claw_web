@@ -24,7 +24,10 @@ export const CONVERSATION_ID = "default";
 // Only chat bubbles carry this label; history must never leak other modes.
 const CHAT_MODE_LABEL = "Chat";
 const DEFAULT_HISTORY_TURNS = 10;
+// Per-turn hard cap, and a cumulative budget across kept turns so a few long
+// turns can't bloat the prompt (mirrors the bridge's MAX_HISTORY_TOTAL_CHARS).
 const DEFAULT_HISTORY_CHARS = 4000;
+const DEFAULT_HISTORY_TOTAL_CHARS = 4000;
 
 export function getOrCreateSessionId(): string {
   try {
@@ -46,20 +49,33 @@ export function getOrCreateSessionId(): string {
 // bubbles (not the in-flight assistant placeholder, not other modes) qualify.
 export function buildChatHistory(
   messages: Message[],
-  opts: { maxTurns?: number; maxChars?: number } = {},
+  opts: { maxTurns?: number; maxChars?: number; maxTotalChars?: number } = {},
 ): ChatHistoryItem[] {
   const maxTurns = opts.maxTurns ?? DEFAULT_HISTORY_TURNS;
   const maxChars = opts.maxChars ?? DEFAULT_HISTORY_CHARS;
-  const turns: ChatHistoryItem[] = [];
+  const maxTotalChars = opts.maxTotalChars ?? DEFAULT_HISTORY_TOTAL_CHARS;
+  const valid: ChatHistoryItem[] = [];
   for (const m of messages) {
     if (m.modeLabel !== CHAT_MODE_LABEL) continue;
     if (m.generating) continue;
     if (m.role !== "user" && m.role !== "assistant") continue;
     const content = m.text.trim();
     if (!content) continue;
-    turns.push({ role: m.role, content: content.slice(0, maxChars) });
+    valid.push({ role: m.role, content: content.slice(0, maxChars) });
   }
-  return turns.slice(-maxTurns);
+  // Keep the most recent turns within both a turn-count and a cumulative
+  // character budget; walk newest->oldest then restore chronological order.
+  const kept: ChatHistoryItem[] = [];
+  let total = 0;
+  for (let i = valid.length - 1; i >= 0; i--) {
+    if (kept.length >= maxTurns) break;
+    total += valid[i].content.length;
+    // Always keep at least the newest turn even if it alone exceeds budget.
+    if (total > maxTotalChars && kept.length) break;
+    kept.push(valid[i]);
+  }
+  kept.reverse();
+  return kept;
 }
 
 const MODES: readonly Mode[] = ["chat", "translation", "investment", "life"];

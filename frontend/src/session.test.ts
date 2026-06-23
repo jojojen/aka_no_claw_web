@@ -172,6 +172,20 @@ describe("buildChatHistory — inline chat context (#44)", () => {
     );
     expect(long[0].content).toHaveLength(10);
   });
+
+  it("trims to a cumulative total-character budget, newest kept, in order", () => {
+    // Each turn ~1/4 of the budget: 3 fit (3/4) and the 4th overflows.
+    const messages: Message[] = Array.from({ length: 6 }, (_, i) => ({
+      id: String(i),
+      role: "user" as const,
+      text: `${i}${"a".repeat(1000)}`,
+      modeLabel: "Chat",
+    }));
+    const hist = buildChatHistory(messages, { maxTurns: 10, maxTotalChars: 4000 });
+    const total = hist.reduce((n, t) => n + t.content.length, 0);
+    expect(total).toBeLessThanOrEqual(4000);
+    expect(hist.map((t) => t.content[0])).toEqual(["3", "4", "5"]);
+  });
 });
 
 describe("getOrCreateSessionId — stable per-browser id (#44)", () => {
