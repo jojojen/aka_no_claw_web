@@ -46,6 +46,25 @@ const LIFE_SENTINELS = new Set([MUSIC_JOB_ID, BLUETOOTH_JOB_ID, APPLIANCE_JOB_ID
 let _seq = 0;
 const uid = () => `m${Date.now()}-${_seq++}`;
 
+// Read a File into base64 (no data: URL prefix) for the bridge's data_base64
+// attachment field. FileReader yields "data:<mime>;base64,<payload>"; we keep
+// only the payload.
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error("file read failed"));
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        reject(new Error("unexpected file reader result"));
+        return;
+      }
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.readAsDataURL(file);
+  });
+
 const MODE_LABELS: Record<string, string> = {
   chat: "Chat",
   text_translation: "翻譯",
@@ -559,14 +578,36 @@ export default function App() {
         userMsg,
         { id: assistantId, role: "assistant", text: "", modeLabel: "翻譯", generating: true },
       ]);
-      const req: WebCommandRequest = {
-        mode: "translation",
-        submode: "image_translation",
-        input: "",
-        attachments: [{ type: "image", filename: file.name, content_type: file.type }],
-        source: SOURCE,
-      };
-      void runBlocking(req, assistantId, "翻譯");
+      void (async () => {
+        let dataBase64: string;
+        try {
+          dataBase64 = await fileToBase64(file);
+        } catch {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? { ...m, text: "讀取圖片失敗，請重新選擇。", status: "error", generating: false }
+                : m,
+            ),
+          );
+          return;
+        }
+        const req: WebCommandRequest = {
+          mode: "translation",
+          submode: "image_translation",
+          input: "",
+          attachments: [
+            {
+              type: "image",
+              filename: file.name,
+              content_type: file.type,
+              data_base64: dataBase64,
+            },
+          ],
+          source: SOURCE,
+        };
+        void runBlocking(req, assistantId, "翻譯");
+      })();
     },
     [generating, mode, runBlocking],
   );

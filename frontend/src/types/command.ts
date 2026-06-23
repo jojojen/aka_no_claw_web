@@ -15,6 +15,9 @@ export type Attachment = {
   type: string;
   filename?: string;
   content_type?: string;
+  // Base64-encoded raw bytes (no data: URL prefix). The bridge decodes these
+  // and runs the real OCR + translation pipeline (aka_no_claw#43).
+  data_base64?: string;
 };
 
 export type WebCommandRequest = {
