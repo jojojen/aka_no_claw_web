@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import type { Mode } from "../types/command";
 import { FlatActionButton } from "./FlatActionButton";
@@ -22,6 +22,18 @@ export function InputBar({
   onSelectImage,
 }: Props) {
   const [value, setValue] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const resizeTextarea = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  };
+
+  useLayoutEffect(() => {
+    resizeTextarea();
+  }, [value]);
 
   const submit = () => {
     const text = value.trim();
@@ -31,7 +43,7 @@ export function InputBar({
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       submit();
     }
@@ -43,12 +55,14 @@ export function InputBar({
         <AttachmentButton onSelect={onSelectImage} disabled={generating} />
       )}
       <textarea
+        ref={textareaRef}
         rows={1}
+        enterKeyHint="enter"
         value={value}
         placeholder={placeholder}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={onKeyDown}
-        className="flex-1 resize-none rounded border border-muted bg-white px-3 py-2 text-base outline-none focus:border-primary"
+        className="max-h-40 min-h-11 flex-1 resize-none overflow-y-auto rounded border border-muted bg-white px-3 py-2 text-base leading-6 outline-none focus:border-primary"
       />
       {generating ? (
         <FlatActionButton variant="muted" onClick={onStop}>
