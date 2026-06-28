@@ -3,7 +3,7 @@
 // bridge as an external local API and never reimplements routing.
 
 export type Mode = "chat" | "translation" | "investment" | "life";
-export type ChatBackend = "local" | "cloud_pickle";
+export type ChatBackend = "local" | "cloud_pickle" | "cloud_mistral";
 
 export type Submode =
   | "text_translation"
