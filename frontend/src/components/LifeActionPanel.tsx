@@ -19,6 +19,15 @@ const PLAYBACK: { label: string; callbackData: string }[] = [
   { label: "➕ 加入最愛(目前)", callbackData: "music:now" },
 ];
 
+// Queue navigation (#60). 上一首／下一首 only act on an active queue
+// (隨機播放 / 播放最愛); the bridge replies with guidance otherwise. ⏯ toggles
+// pause/resume on the current track. callback_data mirrors the Telegram buttons.
+const NAV: { label: string; callbackData: string }[] = [
+  { label: "⏮ 上一首", callbackData: "music:prev" },
+  { label: "⏯ 暫停/繼續", callbackData: "music:playpause" },
+  { label: "⏭ 下一首", callbackData: "music:next" },
+];
+
 const VOLUME: { label: string; callbackData: string }[] = [
   { label: "🔇 靜音", callbackData: "music:mute" },
   { label: "🔉 音量降低", callbackData: "music:lower" },
@@ -92,6 +101,19 @@ function MusicControls({
             variant="muted"
             disabled={disabled}
             onClick={() => onAction(b.callbackData)}
+          >
+            {b.label}
+          </FlatActionButton>
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {NAV.map((b) => (
+          <FlatActionButton
+            key={b.callbackData}
+            variant="muted"
+            disabled={disabled}
+            onClick={() => onAction(b.callbackData)}
+            className="whitespace-nowrap px-2"
           >
             {b.label}
           </FlatActionButton>

@@ -64,6 +64,13 @@ describe("LifeActionPanel — music controls (#3/#4)", () => {
     expect(screen.getByText(/加入最愛/)).toBeDefined();
   });
 
+  it("renders the 上一首 / 暫停／繼續 / 下一首 queue-nav buttons (#60)", () => {
+    renderPanel();
+    expect(screen.getByText(/上一首/)).toBeDefined();
+    expect(screen.getByText(/暫停/)).toBeDefined();
+    expect(screen.getByText(/下一首/)).toBeDefined();
+  });
+
   it("renders 靜音, 音量降低, 音量提高", () => {
     renderPanel();
     expect(screen.getByText(/靜音/)).toBeDefined();
@@ -100,6 +107,9 @@ const DISPATCH_CASES: [RegExp, string][] = [
   [/最愛清單/, "pg:mb:0:r"],
   [/播放最愛/, "music:pb"],
   [/加入最愛/, "music:now"],
+  [/上一首/, "music:prev"],
+  [/暫停/, "music:playpause"],
+  [/下一首/, "music:next"],
   [/靜音/, "music:mute"],
   [/音量降低/, "music:lower"],
   [/音量提高/, "music:louder"],
