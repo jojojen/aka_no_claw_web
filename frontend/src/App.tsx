@@ -798,12 +798,9 @@ export default function App() {
         setNotice("已切換模型；實際路由資訊尚未載入。");
         return;
       }
-      const chain = route.chain
-        .map((m, i) => `${i === 0 ? "" : "fallback: "}${m.provider} ${m.model}`)
-        .join(" -> ");
       const configured = route.configured ? "" : "（尚未設定 API key，可能退回本地模型）";
       setNotice(
-        `已切換到 ${route.label}：${route.requested_provider} ${route.requested_model}。Fallback chain: ${chain}${configured}`,
+        `已切換到 ${route.label}：${route.requested_provider} ${route.requested_model}${configured}`,
       );
     },
     [modelRoutes],

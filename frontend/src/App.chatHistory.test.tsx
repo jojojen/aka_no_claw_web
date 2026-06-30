@@ -151,6 +151,7 @@ describe("App — chat continuity (#44)", () => {
     fireEvent.click(screen.getByText("Gemini"));
 
     await waitFor(() => screen.getByText(/已切換到 Gemini：gemini gemini-2.5-pro/));
-    expect(screen.getByText(/gemini-2.5-flash/)).toBeDefined();
+    expect(screen.queryByText(/gemini-2.5-flash/)).toBeNull();
+    expect(screen.queryByText(/Fallback chain/)).toBeNull();
   });
 });
