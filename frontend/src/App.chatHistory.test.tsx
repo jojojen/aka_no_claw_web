@@ -106,14 +106,29 @@ describe("App — chat continuity (#44)", () => {
 
   it("non-chat modes do not send chat history", async () => {
     mockSend.mockResolvedValue({ status: "ok", message: "[翻譯結果]" });
+    mockModelRoutes.mockResolvedValue({
+      status: "ok",
+      routes: [
+        {
+          backend: "gemini",
+          label: "Gemini",
+          requested_provider: "gemini",
+          requested_model: "gemini-2.5-pro",
+          chain: [{ provider: "gemini", model: "gemini-2.5-pro" }],
+          configured: true,
+        },
+      ],
+    });
     render(<App />);
     await waitFor(() => expect(mockLoad).toHaveBeenCalled());
+    await waitFor(() => expect(mockModelRoutes).toHaveBeenCalled());
 
     // Build up some chat history first.
     await sendChat("初音是誰", "她是虛擬歌手");
 
     // Switch to Translation mode and send.
     fireEvent.click(screen.getByRole("tab", { name: "翻譯" }));
+    fireEvent.click(screen.getByText("Gemini"));
     fireEvent.change(screen.getByPlaceholderText(/翻譯成繁體中文/), {
       target: { value: "これはペンです" },
     });
@@ -124,6 +139,8 @@ describe("App — chat continuity (#44)", () => {
     expect(req.mode).toBe("translation");
     expect(req.history).toBeUndefined();
     expect(req.session_id).toBeUndefined();
+    expect(req.chat_backend).toBe("gemini");
+    expect(screen.getByText(/已切換到 Gemini：gemini gemini-2.5-pro/)).toBeDefined();
   });
 
   it("shows concrete route info when switching model tabs", async () => {

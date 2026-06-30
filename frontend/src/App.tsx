@@ -274,6 +274,7 @@ export default function App() {
           mode: "translation",
           submode: "text_translation",
           input: text,
+          chat_backend: chatBackend,
           attachments: [],
           source: SOURCE,
         };
@@ -1028,7 +1029,7 @@ export default function App() {
         <ModeToggle mode={mode} onChange={setMode} />
       </div>
 
-      {mode === "chat" && (
+      {(mode === "chat" || mode === "translation") && (
         <div className="border-b border-muted px-3 py-2">
           <ChatBackendSelector
             backend={chatBackend}
