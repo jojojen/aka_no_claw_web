@@ -84,6 +84,17 @@ describe("fromSnapshot — restore / fail soft", () => {
     expect(st.investmentSubmode).toBe("deep_product_research");
     expect(st.activeJobId).toBeNull();
   });
+
+  it("restores the Gemini chat backend", () => {
+    const st = fromSnapshot({
+      messages: [],
+      mode: "chat",
+      chat_backend: "gemini",
+      active_job_id: null,
+    });
+
+    expect(st.chatBackend).toBe("gemini");
+  });
 });
 
 describe("toSnapshot — persist", () => {

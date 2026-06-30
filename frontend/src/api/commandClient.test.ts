@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearSession,
+  getModelRoutes,
   getNowPlaying,
   loadSession,
   restartAll,
@@ -435,5 +436,36 @@ describe("runScheduleHomeAction", () => {
     mockFetch(async () => { throw new Error("offline"); });
     const res = await runScheduleHomeAction("sh:cancel");
     expect(res.status).toBe("error");
+  });
+});
+
+describe("getModelRoutes", () => {
+  it("GETs /api/command/model-routes", async () => {
+    let seenUrl = "";
+    mockFetch(async (url) => {
+      seenUrl = url;
+      return jsonResponse({
+        status: "ok",
+        routes: [
+          {
+            backend: "gemini",
+            label: "Gemini",
+            requested_provider: "gemini",
+            requested_model: "gemini-2.5-pro",
+            chain: [
+              { provider: "gemini", model: "gemini-2.5-pro" },
+              { provider: "gemini", model: "gemini-2.5-flash" },
+            ],
+            configured: true,
+          },
+        ],
+      });
+    });
+
+    const res = await getModelRoutes();
+
+    expect(seenUrl).toBe("/api/command/model-routes");
+    expect(res.status).toBe("ok");
+    expect(res.routes[0].backend).toBe("gemini");
   });
 });

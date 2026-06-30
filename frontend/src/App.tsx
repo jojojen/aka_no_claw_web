@@ -3,6 +3,7 @@ import type {
   ChatBackend,
   ChatHistoryItem,
   Message,
+  ModelRoute,
   Mode,
   SessionSnapshot,
   Submode,
@@ -10,6 +11,7 @@ import type {
 } from "./types/command";
 import {
   clearSession,
+  getModelRoutes,
   getNowPlaying,
   loadSession,
   pollJob,
@@ -101,6 +103,7 @@ function placeholderFor(mode: Mode, submode: Submode): string {
 export default function App() {
   const [mode, setMode] = useState<Mode>("chat");
   const [chatBackend, setChatBackend] = useState<ChatBackend>("local");
+  const [modelRoutes, setModelRoutes] = useState<ModelRoute[]>([]);
   const [investmentSubmode, setInvestmentSubmode] =
     useState<Submode>("deep_product_research");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -201,6 +204,19 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const res = await getModelRoutes();
+      if (alive && res.status === "ok") {
+        setModelRoutes(res.routes);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // Persist (debounced) whenever the restorable state changes — but only after
   // the initial restore, so the blank startup state can't clobber saved data.
   // Skip when messages is empty: an empty console has no session worth keeping,
@@ -282,6 +298,7 @@ export default function App() {
           text: res.message,
           status: res.status,
           modeLabel: label,
+          modelMetadata: res.model_metadata,
           generating: false,
         });
       } catch (err) {
@@ -323,6 +340,7 @@ export default function App() {
               patch(assistantId, {
                 text: event.message || acc,
                 status: "ok",
+                modelMetadata: event.model_metadata,
                 generating: false,
               });
             } else if (event.type === "error") {
@@ -772,6 +790,25 @@ export default function App() {
     [generating, mode, investmentSubmode, workflowActive, scheduleActive, messages, buildRequest, patch, runStreaming, runPolling, runBlocking, runLifeCard, runWorkflowCard, runScheduleCard],
   );
 
+  const onChatBackendChange = useCallback(
+    (next: ChatBackend) => {
+      setChatBackend(next);
+      const route = modelRoutes.find((r) => r.backend === next);
+      if (!route) {
+        setNotice("已切換模型；實際路由資訊尚未載入。");
+        return;
+      }
+      const chain = route.chain
+        .map((m, i) => `${i === 0 ? "" : "fallback: "}${m.provider} ${m.model}`)
+        .join(" -> ");
+      const configured = route.configured ? "" : "（尚未設定 API key，可能退回本地模型）";
+      setNotice(
+        `已切換到 ${route.label}：${route.requested_provider} ${route.requested_model}。Fallback chain: ${chain}${configured}`,
+      );
+    },
+    [modelRoutes],
+  );
+
   const onSelectImage = useCallback(
     (file: File) => {
       if (generating || mode !== "translation") return;
@@ -998,7 +1035,7 @@ export default function App() {
         <div className="border-b border-muted px-3 py-2">
           <ChatBackendSelector
             backend={chatBackend}
-            onChange={setChatBackend}
+            onChange={onChatBackendChange}
             disabled={generating}
           />
         </div>

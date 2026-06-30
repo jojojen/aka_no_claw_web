@@ -79,7 +79,7 @@ export function buildChatHistory(
 }
 
 const MODES: readonly Mode[] = ["chat", "translation", "investment", "life"];
-const BACKENDS: readonly ChatBackend[] = ["local", "cloud_pickle", "cloud_mistral"];
+const BACKENDS: readonly ChatBackend[] = ["local", "cloud_mistral", "gemini", "cloud_pickle"];
 const SUBMODES: readonly Submode[] = [
   "text_translation",
   "image_translation",
@@ -159,6 +159,9 @@ function sanitizeMessage(raw: unknown): Message | null {
   if (typeof m.modeLabel === "string") msg.modeLabel = m.modeLabel;
   if (oneOf(m.status, STATUSES)) msg.status = m.status as ResponseStatus;
   if (typeof m.jobId === "string") msg.jobId = m.jobId;
+  if (m.modelMetadata && typeof m.modelMetadata === "object") {
+    msg.modelMetadata = m.modelMetadata as Message["modelMetadata"];
+  }
   if (Array.isArray(m.actions)) {
     const actions = m.actions.filter(
       (a): a is { label: string; callback_data: string } =>

@@ -33,7 +33,10 @@ vi.mock("./api/commandClient", () => ({
   runIrCommand: vi.fn(),
   runWorkflowCommand: vi.fn(),
   runWorkflowAction: vi.fn(),
+  runScheduleHomeCommand: vi.fn(),
+  runScheduleHomeAction: vi.fn(),
   getNowPlaying: vi.fn().mockResolvedValue(null),
+  getModelRoutes: vi.fn().mockResolvedValue({ status: "ok", routes: [] }),
   restartAll: vi.fn(),
 }));
 

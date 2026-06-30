@@ -24,6 +24,7 @@ vi.mock("./api/commandClient", () => ({
   clearSession: vi.fn(),
   pollJob: vi.fn(),
   getNowPlaying: vi.fn().mockResolvedValue(null),
+  getModelRoutes: vi.fn().mockResolvedValue({ status: "ok", routes: [] }),
   sendCommand: vi.fn(),
   streamCommand: vi.fn(),
   startAsyncCommand: vi.fn(),
@@ -35,6 +36,8 @@ vi.mock("./api/commandClient", () => ({
   runIrCommand: vi.fn(),
   runWorkflowCommand: vi.fn(),
   runWorkflowAction: vi.fn(),
+  runScheduleHomeCommand: vi.fn(),
+  runScheduleHomeAction: vi.fn(),
   restartAll: vi.fn(),
 }));
 
@@ -45,6 +48,7 @@ import { emptySnapshot } from "./session";
 const mockLoad = vi.mocked(client.loadSession);
 const mockStream = vi.mocked(client.streamCommand);
 const mockSend = vi.mocked(client.sendCommand);
+const mockModelRoutes = vi.mocked(client.getModelRoutes);
 
 function emptySession() {
   return { status: "ok" as const, session: emptySnapshot() };
@@ -53,6 +57,7 @@ function emptySession() {
 beforeEach(() => {
   localStorage.clear();
   mockLoad.mockResolvedValue(emptySession());
+  mockModelRoutes.mockResolvedValue({ status: "ok", routes: [] });
 });
 
 afterEach(() => {
@@ -119,5 +124,33 @@ describe("App — chat continuity (#44)", () => {
     expect(req.mode).toBe("translation");
     expect(req.history).toBeUndefined();
     expect(req.session_id).toBeUndefined();
+  });
+
+  it("shows concrete route info when switching model tabs", async () => {
+    mockModelRoutes.mockResolvedValue({
+      status: "ok",
+      routes: [
+        {
+          backend: "gemini",
+          label: "Gemini",
+          requested_provider: "gemini",
+          requested_model: "gemini-2.5-pro",
+          chain: [
+            { provider: "gemini", model: "gemini-2.5-pro" },
+            { provider: "gemini", model: "gemini-2.5-flash" },
+            { provider: "local", model: "qwen3:latest" },
+          ],
+          configured: true,
+        },
+      ],
+    });
+    render(<App />);
+    await waitFor(() => expect(mockLoad).toHaveBeenCalled());
+    await waitFor(() => expect(mockModelRoutes).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Gemini"));
+
+    await waitFor(() => screen.getByText(/已切換到 Gemini：gemini gemini-2.5-pro/));
+    expect(screen.getByText(/gemini-2.5-flash/)).toBeDefined();
   });
 });

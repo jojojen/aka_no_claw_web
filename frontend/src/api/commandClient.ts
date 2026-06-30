@@ -3,6 +3,7 @@ import type {
   AsyncStartResponse,
   CommandResponse,
   JobPollResponse,
+  ModelRoutesResponse,
   RestartAllResponse,
   SessionClearResponse,
   SessionLoadResponse,
@@ -26,6 +27,7 @@ const WORKFLOW_URL = "/api/command/workflow";
 const SCHEDULE_URL = "/api/command/schedulehome";
 const SESSION_URL = "/api/command/session";
 const RESTART_ALL_URL = "/api/command/restartall";
+const MODEL_ROUTES_URL = "/api/command/model-routes";
 
 // Blocking call — used for short non-chat commands (translation, research).
 export async function sendCommand(req: WebCommandRequest): Promise<CommandResponse> {
@@ -185,6 +187,18 @@ export async function getNowPlaying(): Promise<string | null> {
     return typeof data?.name === "string" ? data.name : null;
   } catch {
     return null;
+  }
+}
+
+export async function getModelRoutes(): Promise<ModelRoutesResponse> {
+  try {
+    const res = await fetch(MODEL_ROUTES_URL);
+    if (!res.ok) {
+      return { status: "error", routes: [], message: `HTTP ${res.status}` };
+    }
+    return (await res.json()) as ModelRoutesResponse;
+  } catch (err) {
+    return { status: "error", routes: [], message: String(err) };
   }
 }
 

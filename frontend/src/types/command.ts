@@ -3,7 +3,7 @@
 // bridge as an external local API and never reimplements routing.
 
 export type Mode = "chat" | "translation" | "investment" | "life";
-export type ChatBackend = "local" | "cloud_pickle" | "cloud_mistral";
+export type ChatBackend = "local" | "cloud_mistral" | "gemini" | "cloud_pickle";
 
 export type Submode =
   | "text_translation"
@@ -56,6 +56,37 @@ export type CommandSource = {
   domain?: string;
 };
 
+export type ModelAttempt = {
+  provider: string;
+  model: string;
+  status: string;
+  reason?: string;
+};
+
+export type ModelMetadata = {
+  requested_provider: string;
+  requested_model: string;
+  attempted_models: ModelAttempt[];
+  final_provider: string;
+  final_model: string;
+  fallback_reason?: string;
+};
+
+export type ModelRoute = {
+  backend: ChatBackend;
+  label: string;
+  requested_provider: string;
+  requested_model: string;
+  chain: { provider: string; model: string }[];
+  configured: boolean;
+};
+
+export type ModelRoutesResponse = {
+  status: ResponseStatus;
+  routes: ModelRoute[];
+  message?: string;
+};
+
 export type CommandResponse = {
   status: ResponseStatus;
   message: string;
@@ -64,6 +95,7 @@ export type CommandResponse = {
   actions?: CommandAction[];
   warnings?: string[];
   sources?: CommandSource[];
+  model_metadata?: ModelMetadata;
 };
 
 // Streaming events from POST /api/command/stream (NDJSON).
@@ -71,7 +103,7 @@ export type StreamEvent =
   | { type: "start"; request_id: string }
   | { type: "delta"; text: string }
   | { type: "heartbeat" }
-  | { type: "done"; message: string }
+  | { type: "done"; message: string; model_metadata?: ModelMetadata }
   | { type: "error"; message: string }
   | { type: "redirect"; intent: string; description: string; workflow_id?: string };
 
@@ -157,4 +189,5 @@ export type Message = {
   generating?: boolean;
   actions?: ActionButton[];
   jobId?: string;
+  modelMetadata?: ModelMetadata;
 };
