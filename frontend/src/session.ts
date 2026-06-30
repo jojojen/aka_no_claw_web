@@ -116,13 +116,16 @@ export type AppSessionState = {
   investmentSubmode: Submode;
 };
 
+const _SENTINEL_JOB_IDS = new Set(["__music__", "__bluetooth__", "__appliance__", "__workflow__", "__schedule__"]);
+
 // Build the snapshot to persist. active_job_id is the most recent real research
-// job (music's sentinel job id is excluded — it isn't pollable on restore).
+// job; sentinel ids (music / bluetooth / appliance / workflow cards) are excluded
+// since they are not pollable background jobs and carry no reconnect state.
 export function toSnapshot(state: AppSessionState): SessionSnapshot {
   let activeJobId: string | null = null;
   for (let i = state.messages.length - 1; i >= 0; i--) {
     const jid = state.messages[i].jobId;
-    if (jid && jid !== "__music__") {
+    if (jid && !_SENTINEL_JOB_IDS.has(jid)) {
       activeJobId = jid;
       break;
     }

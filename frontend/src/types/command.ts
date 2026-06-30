@@ -72,7 +72,8 @@ export type StreamEvent =
   | { type: "delta"; text: string }
   | { type: "heartbeat" }
   | { type: "done"; message: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "redirect"; intent: string; description: string; workflow_id?: string };
 
 // Async job model from POST /api/command/async + GET /api/command/poll.
 // Long commands (deep product research) run decoupled from the connection so a
@@ -90,6 +91,7 @@ export type JobStatus = "running" | "done" | "error" | "interrupted";
 export type ActionButton = {
   label: string;
   callback_data: string;
+  row?: number;
 };
 
 export type JobPollResponse = {

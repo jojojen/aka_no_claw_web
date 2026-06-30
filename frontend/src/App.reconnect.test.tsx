@@ -32,6 +32,10 @@ vi.mock("./api/commandClient", () => ({
   runBluetoothAction: vi.fn(),
   runBluetoothScan: vi.fn(),
   runIrCommand: vi.fn(),
+  runWorkflowCommand: vi.fn(),
+  runWorkflowAction: vi.fn(),
+  runScheduleHomeCommand: vi.fn(),
+  runScheduleHomeAction: vi.fn(),
   restartAll: vi.fn(),
 }));
 
@@ -47,6 +51,8 @@ const mockStartAsync = vi.mocked(client.startAsyncCommand);
 const RESEARCH_JOB_ID = "job-abc123";
 const MUSIC_SENTINEL = "__music__";
 const BLUETOOTH_SENTINEL = "__bluetooth__";
+const WORKFLOW_SENTINEL = "__workflow__";
+const SCHEDULE_SENTINEL = "__schedule__";
 
 function sessionWithJob(jobId: string) {
   return {
@@ -112,6 +118,20 @@ describe("App — job reconnect after reload (web#6)", () => {
 
   it("no reconnect for bluetooth sentinel __bluetooth__", async () => {
     mockLoad.mockResolvedValue(sessionWithJob(BLUETOOTH_SENTINEL));
+    render(<App />);
+    await waitFor(() => expect(mockLoad).toHaveBeenCalled());
+    expect(mockPoll).not.toHaveBeenCalled();
+  });
+
+  it("no reconnect for workflow sentinel __workflow__", async () => {
+    mockLoad.mockResolvedValue(sessionWithJob(WORKFLOW_SENTINEL));
+    render(<App />);
+    await waitFor(() => expect(mockLoad).toHaveBeenCalled());
+    expect(mockPoll).not.toHaveBeenCalled();
+  });
+
+  it("no reconnect for schedule sentinel __schedule__", async () => {
+    mockLoad.mockResolvedValue(sessionWithJob(SCHEDULE_SENTINEL));
     render(<App />);
     await waitFor(() => expect(mockLoad).toHaveBeenCalled());
     expect(mockPoll).not.toHaveBeenCalled();

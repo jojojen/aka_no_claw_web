@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { FlatActionButton } from "./FlatActionButton";
 
-// 生活 mode splits into categories (web#7 + IR controls): 音樂, 藍牙, 家電. The category
-// toggle is local UI state; the actual actions still route through the bridge so
-// the phone never reimplements playback, Bluetooth, or IR logic.
-type Category = "music" | "bluetooth" | "appliance";
+// 生活 mode splits into categories (web#7 + IR controls + web#9): 音樂, 藍牙, 家電, 工作流, 排程.
+// The category toggle is local UI state; actions route through the bridge so the phone
+// never reimplements playback, Bluetooth, IR, workflow, or schedule logic.
+type Category = "music" | "bluetooth" | "appliance" | "workflow" | "schedule";
 
 // Music controls (web#3 + #4). These are the only hardcoded music buttons;
 // folders/songs/favorites — and the 切換音源 output-device picker (music:dev) —
@@ -39,6 +39,8 @@ type Props = {
   onMusicAction: (callbackData: string) => void;
   onBluetoothScan: () => void;
   onAppliancePower: () => void;
+  onWorkflowList: () => void;
+  onScheduleList: () => void;
 };
 
 export function LifeActionPanel({
@@ -46,6 +48,8 @@ export function LifeActionPanel({
   onMusicAction,
   onBluetoothScan,
   onAppliancePower,
+  onWorkflowList,
+  onScheduleList,
 }: Props) {
   const [category, setCategory] = useState<Category>("music");
 
@@ -71,6 +75,22 @@ export function LifeActionPanel({
           🏠 家電
         </FlatActionButton>
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        <FlatActionButton
+          variant={category === "workflow" ? "active" : "muted"}
+          onClick={() => setCategory("workflow")}
+        >
+          🔄 工作流
+        </FlatActionButton>
+        <FlatActionButton
+          variant={category === "schedule" ? "active" : "muted"}
+          onClick={() => setCategory("schedule")}
+        >
+          📅 排程
+        </FlatActionButton>
+      </div>
+
+      <div className="border-t border-muted" />
 
       {category === "music" && (
         <MusicControls disabled={disabled} onAction={onMusicAction} />
@@ -80,6 +100,12 @@ export function LifeActionPanel({
       )}
       {category === "appliance" && (
         <ApplianceControls disabled={disabled} onPower={onAppliancePower} />
+      )}
+      {category === "workflow" && (
+        <WorkflowControls disabled={disabled} onList={onWorkflowList} />
+      )}
+      {category === "schedule" && (
+        <ScheduleControls disabled={disabled} onList={onScheduleList} />
       )}
     </div>
   );
@@ -173,6 +199,42 @@ function ApplianceControls({
     <div className="flex flex-col gap-2">
       <FlatActionButton variant="muted" disabled={disabled} onClick={onPower}>
         💡 燈（開關）
+      </FlatActionButton>
+    </div>
+  );
+}
+
+// 工作流 sub-panel: list all saved workflows. Each workflow card returned by the
+// bridge includes an "▶️ 排程執行" button (add_for_wf callback) so the user can
+// schedule any workflow directly from the list.
+function WorkflowControls({
+  disabled,
+  onList,
+}: {
+  disabled: boolean;
+  onList: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <FlatActionButton variant="muted" disabled={disabled} onClick={onList}>
+        📋 工作流列表
+      </FlatActionButton>
+    </div>
+  );
+}
+
+// 排程 sub-panel: show the current schedule list with run/on/off/delete actions.
+function ScheduleControls({
+  disabled,
+  onList,
+}: {
+  disabled: boolean;
+  onList: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <FlatActionButton variant="muted" disabled={disabled} onClick={onList}>
+        📅 排程列表
       </FlatActionButton>
     </div>
   );

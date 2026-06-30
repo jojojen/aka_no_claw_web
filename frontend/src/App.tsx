@@ -19,6 +19,10 @@ import {
   runIrCommand,
   runMusicAction,
   runMusicCommand,
+  runWorkflowAction,
+  runWorkflowCommand,
+  runScheduleHomeAction,
+  runScheduleHomeCommand,
   saveSession,
   sendCommand,
   startAsyncCommand,
@@ -43,13 +47,15 @@ import { InputBar } from "./components/InputBar";
 
 const SOURCE = "aka_no_claw_web";
 
-// Sentinel jobIds marking 生活-mode cards, so their action buttons stay enabled
-// and route back through the music / bluetooth endpoints (not the research action
-// endpoint, which needs a real research job id). They are never pollable as jobs.
+// Sentinel jobIds marking 生活-mode and workflow cards, so their action buttons
+// stay enabled and route back through the dedicated endpoints (not the research
+// action endpoint, which needs a real research job id). Never pollable as jobs.
 const MUSIC_JOB_ID = "__music__";
 const BLUETOOTH_JOB_ID = "__bluetooth__";
 const APPLIANCE_JOB_ID = "__appliance__";
-const LIFE_SENTINELS = new Set([MUSIC_JOB_ID, BLUETOOTH_JOB_ID, APPLIANCE_JOB_ID]);
+const WORKFLOW_JOB_ID = "__workflow__";
+const SCHEDULE_JOB_ID = "__schedule__";
+const LIFE_SENTINELS = new Set([MUSIC_JOB_ID, BLUETOOTH_JOB_ID, APPLIANCE_JOB_ID, WORKFLOW_JOB_ID, SCHEDULE_JOB_ID]);
 
 let _seq = 0;
 const uid = () => `m${Date.now()}-${_seq++}`;
@@ -80,6 +86,8 @@ const MODE_LABELS: Record<string, string> = {
   deep_product_research: "商品深入研究",
   seller_reputation_snapshot: "賣家信譽快照",
   life: "生活",
+  workflow: "工作流",
+  schedule: "排程",
 };
 
 function placeholderFor(mode: Mode, submode: Submode): string {
@@ -102,6 +110,10 @@ export default function App() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [nowPlaying, setNowPlaying] = useState<string | null>(null);
+  const [workflowActive, setWorkflowActive] = useState(false);
+  const workflowMsgIdRef = useRef<string | null>(null);
+  const [scheduleActive, setScheduleActive] = useState(false);
+  const scheduleMsgIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const stopPollRef = useRef<(() => void) | null>(null);
 
@@ -286,11 +298,20 @@ export default function App() {
   );
 
   const runStreaming = useCallback(
-    async (req: WebCommandRequest, assistantId: string) => {
+    async (
+      req: WebCommandRequest,
+      assistantId: string,
+      onRedirect?: (intent: string, description: string, workflowId?: string) => void,
+    ) => {
       const controller = new AbortController();
       abortRef.current = controller;
       setGenerating(true);
       let acc = "";
+      // Mutable container instead of a `let` variable: TypeScript's CFA can't
+      // track `let` assignments inside async callbacks through try/finally, so
+      // it narrows the variable to `never` after the block. Reading off a `const`
+      // object property avoids that limitation.
+      const rd: { redirect: { intent: string; description: string; workflowId?: string } | null } = { redirect: null };
       try {
         await streamCommand(
           req,
@@ -310,6 +331,8 @@ export default function App() {
                 status: "error",
                 generating: false,
               });
+            } else if (event.type === "redirect") {
+              rd.redirect = { intent: event.intent, description: event.description, workflowId: event.workflow_id };
             }
           },
           controller.signal,
@@ -325,8 +348,16 @@ export default function App() {
           });
         }
       } finally {
-        setGenerating(false);
+        // If redirect detected, keep generating=true — the redirect handler
+        // calls runWorkflowCard which will clear it in its own finally.
+        if (!rd.redirect) {
+          setGenerating(false);
+        }
         abortRef.current = null;
+      }
+      const ri = rd.redirect;
+      if (ri !== null && onRedirect) {
+        onRedirect(ri.intent, ri.description, ri.workflowId);
       }
     },
     [patch],
@@ -495,6 +526,106 @@ export default function App() {
     [patch],
   );
 
+  // Workflow card: fetch an editor card response and patch msgId in place.
+  // mayClose=true means this call is terminal (save/cancel) — workflowActive
+  // is cleared even when the response carries no wfe: actions. mayClose=false
+  // (default) keeps workflowActive=true for capture-mode responses (plain text
+  // prompts with no wfe: buttons) so the next user message still routes here.
+  const runWorkflowCard = useCallback(
+    async (msgId: string, call: () => Promise<ActionResponse>, mayClose = false) => {
+      setGenerating(true);
+      try {
+        const res = await call();
+        const hasWfe = (res.actions ?? []).some((a) =>
+          a.callback_data.startsWith("wfe:"),
+        );
+        patch(msgId, {
+          text: res.message,
+          status: res.status === "error" ? "error" : "ok",
+          modeLabel: MODE_LABELS.workflow,
+          actions: res.actions?.length ? res.actions : undefined,
+          jobId: WORKFLOW_JOB_ID,
+          generating: false,
+        });
+        if (hasWfe) {
+          setWorkflowActive(true);
+        } else if (res.status === "error" || mayClose) {
+          setWorkflowActive(false);
+          workflowMsgIdRef.current = null;
+        } else if (!res.actions?.length) {
+          // No actions = editor is prompting for text (id / goal / step name).
+          setWorkflowActive(true);
+        } else {
+          // Has non-wfe actions (e.g. list add_for_wf buttons) — not capture.
+          // Keep workflowMsgIdRef so the card can still be updated by actions.
+          setWorkflowActive(false);
+        }
+      } catch (err) {
+        patch(msgId, {
+          text: `無法連線到本機 command bridge（${String(err)}）`,
+          status: "error",
+          generating: false,
+        });
+        setWorkflowActive(false);
+        workflowMsgIdRef.current = null;
+      } finally {
+        setGenerating(false);
+      }
+    },
+    [patch],
+  );
+
+  // Capture mode (scheduleActive=true) means the bridge is waiting for the user
+  // to type slash commands into the chat input. It is ONLY open when the response
+  // has no actions (pure text prompt) or only sh:done / sh:cancel buttons.
+  // Generic sh:* buttons (list, time picker, run/toggle/delete) are interactive
+  // controls that don't require text capture — opening capture there misdirects
+  // subsequent chat messages to the schedule endpoint.
+  const runScheduleCard = useCallback(
+    async (msgId: string, call: () => Promise<ActionResponse>, mayClose = false) => {
+      setGenerating(true);
+      try {
+        const res = await call();
+        const actions = res.actions ?? [];
+        const isCaptureMode =
+          actions.length === 0
+            ? res.status !== "error"
+            : actions.every(
+                (a) => a.callback_data === "sh:done" || a.callback_data === "sh:cancel",
+              );
+        patch(msgId, {
+          text: res.message,
+          status: res.status === "error" ? "error" : "ok",
+          modeLabel: MODE_LABELS.schedule,
+          actions: actions.length ? actions : undefined,
+          jobId: SCHEDULE_JOB_ID,
+          generating: false,
+        });
+        if (res.status === "error" || mayClose) {
+          setScheduleActive(false);
+          scheduleMsgIdRef.current = null;
+        } else if (isCaptureMode) {
+          setScheduleActive(true);
+        } else {
+          // Interactive sh: buttons (list / picker / management) — no capture.
+          // Keep scheduleMsgIdRef so action buttons can re-open capture on the same card.
+          setScheduleActive(false);
+        }
+      } catch (err) {
+        patch(msgId, {
+          text: `無法連線到本機 command bridge（${String(err)}）`,
+          status: "error",
+          generating: false,
+        });
+        setScheduleActive(false);
+        scheduleMsgIdRef.current = null;
+      } finally {
+        setGenerating(false);
+      }
+    },
+    [patch],
+  );
+
   // A 生活 control-panel button: append a fresh assistant message and fill it
   // with the action result (a new "card" per tap keeps the stream as history).
   const onMusicPanel = useCallback(
@@ -537,9 +668,58 @@ export default function App() {
     );
   }, [generating, runLifeCard]);
 
+  // 工作流 list button: shows all saved workflows; each card has "排程執行" buttons
+  // (add_for_wf callbacks) dispatched via onAction → runScheduleCard.
+  const onWorkflowList = useCallback(() => {
+    if (generating) return;
+    const assistantId = uid();
+    setMessages((prev) => [
+      ...prev,
+      { id: assistantId, role: "assistant", text: "", modeLabel: MODE_LABELS.workflow, generating: true },
+    ]);
+    void runWorkflowCard(assistantId, () => runWorkflowCommand("list"));
+  }, [generating, runWorkflowCard]);
+
+  // 排程 list button: shows current schedules with sh:* management buttons.
+  const onScheduleList = useCallback(() => {
+    if (generating) return;
+    const assistantId = uid();
+    setMessages((prev) => [
+      ...prev,
+      { id: assistantId, role: "assistant", text: "", modeLabel: MODE_LABELS.schedule, generating: true },
+    ]);
+    void runScheduleCard(assistantId, () => runScheduleHomeCommand(""));
+  }, [generating, runScheduleCard]);
+
   const onSend = useCallback(
     (text: string) => {
       if (generating) return;
+
+      // Workflow capture: while an editor card is open, all chat text goes to
+      // the workflow endpoint. The bridge routes it to the active capture field
+      // or treats it as a new subcommand against the existing draft session.
+      // The card is updated in place; a user message is appended for history.
+      if (mode === "chat" && workflowActive && workflowMsgIdRef.current) {
+        const cardId = workflowMsgIdRef.current;
+        const wfUserMsg: Message = { id: uid(), role: "user", text, modeLabel: MODE_LABELS.workflow };
+        setMessages((prev) => [...prev, wfUserMsg]);
+        patch(cardId, { generating: true });
+        void runWorkflowCard(cardId, () => runWorkflowCommand(text));
+        return;
+      }
+
+      // Schedule capture: while a schedule card is in capture mode, text routes
+      // to the schedule endpoint. "完成"/"done"/"結束" closes capture (mayClose=true).
+      if (mode === "chat" && scheduleActive && scheduleMsgIdRef.current) {
+        const cardId = scheduleMsgIdRef.current;
+        const isDone = ["完成", "done", "結束"].includes(text.trim());
+        const shUserMsg: Message = { id: uid(), role: "user", text, modeLabel: MODE_LABELS.schedule };
+        setMessages((prev) => [...prev, shUserMsg]);
+        patch(cardId, { generating: true });
+        void runScheduleCard(cardId, () => runScheduleHomeCommand(text), isDone);
+        return;
+      }
+
       const label =
         mode === "chat"
           ? MODE_LABELS.chat
@@ -567,7 +747,19 @@ export default function App() {
       const history = mode === "chat" ? buildChatHistory(messages) : [];
       const req = buildRequest(text, history);
       if (mode === "chat") {
-        void runStreaming(req, assistantId);
+        // Backend embedding fast-path may emit a redirect event for workflow
+        // creation requests. The onRedirect callback re-routes here without a
+        // round-trip to the slow LLM router.
+        void runStreaming(req, assistantId, (intent, description, workflowId) => {
+          if (intent === "create_workflow") {
+            workflowMsgIdRef.current = assistantId;
+            void runWorkflowCard(assistantId, () => runWorkflowCommand(`create ${description}`));
+          } else if (intent === "create_schedule") {
+            scheduleMsgIdRef.current = assistantId;
+            const cmd = workflowId ? `add_for_wf ${workflowId}` : "add";
+            void runScheduleCard(assistantId, () => runScheduleHomeCommand(cmd));
+          }
+        });
       } else if (
         mode === "investment" &&
         investmentSubmode === "deep_product_research"
@@ -577,7 +769,7 @@ export default function App() {
         void runBlocking(req, assistantId, label);
       }
     },
-    [generating, mode, investmentSubmode, messages, buildRequest, runStreaming, runPolling, runBlocking, runLifeCard],
+    [generating, mode, investmentSubmode, workflowActive, scheduleActive, messages, buildRequest, patch, runStreaming, runPolling, runBlocking, runLifeCard, runWorkflowCard, runScheduleCard],
   );
 
   const onSelectImage = useCallback(
@@ -676,6 +868,28 @@ export default function App() {
         await runLifeCard(messageId, () => runIrCommand(callbackData), APPLIANCE_JOB_ID);
         return;
       }
+      if (jobId === WORKFLOW_JOB_ID) {
+        // "排程執行" button on the workflow list: opens a new schedule card for
+        // this workflow (add_for_wf <id>) without touching the workflow editor state.
+        if (callbackData.startsWith("add_for_wf ")) {
+          const schedId = uid();
+          setMessages((prev) => [
+            ...prev,
+            { id: schedId, role: "assistant", text: "", modeLabel: MODE_LABELS.schedule, generating: true },
+          ]);
+          patch(messageId, { generating: false });
+          await runScheduleCard(schedId, () => runScheduleHomeCommand(callbackData));
+          return;
+        }
+        const mayClose = callbackData === "wfe:save" || callbackData === "wfe:cancel";
+        await runWorkflowCard(messageId, () => runWorkflowAction(callbackData), mayClose);
+        return;
+      }
+      if (jobId === SCHEDULE_JOB_ID) {
+        const mayClose = callbackData === "sh:cancel" || callbackData === "sh:done";
+        await runScheduleCard(messageId, () => runScheduleHomeAction(callbackData), mayClose);
+        return;
+      }
       try {
         const res = await runAction(jobId, callbackData);
         patch(messageId, {
@@ -692,7 +906,7 @@ export default function App() {
         });
       }
     },
-    [patch, runLifeCard],
+    [patch, runLifeCard, runWorkflowCard, runScheduleCard],
   );
 
   return (
@@ -815,6 +1029,8 @@ export default function App() {
             onMusicAction={onMusicPanel}
             onBluetoothScan={onBluetoothScan}
             onAppliancePower={onAppliancePower}
+            onWorkflowList={onWorkflowList}
+            onScheduleList={onScheduleList}
           />
         </div>
       )}

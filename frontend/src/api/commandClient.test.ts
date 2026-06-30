@@ -9,6 +9,10 @@ import {
   runIrCommand,
   runMusicAction,
   runMusicCommand,
+  runScheduleHomeAction,
+  runScheduleHomeCommand,
+  runWorkflowAction,
+  runWorkflowCommand,
   saveSession,
 } from "./commandClient";
 import { emptySnapshot } from "../session";
@@ -324,6 +328,112 @@ describe("runIrCommand", () => {
   it("fails soft on network error", async () => {
     mockFetch(async () => { throw new Error("offline"); });
     const res = await runIrCommand("/ir send ceiling_light power");
+    expect(res.status).toBe("error");
+  });
+});
+
+// --- workflow creation loop (web#8) ------------------------------------------
+
+describe("runWorkflowCommand", () => {
+  it("POSTs input to /api/command/workflow", async () => {
+    let seenUrl = "";
+    let seenBody = "";
+    mockFetch(async (url, init) => {
+      seenUrl = url;
+      seenBody = init?.body as string;
+      return jsonResponse({
+        status: "ok",
+        message: "草稿已建立",
+        actions: [{ label: "儲存", callback_data: "wfe:save" }],
+      });
+    });
+    const res = await runWorkflowCommand("create 每天早上問候我");
+    expect(seenUrl).toBe("/api/command/workflow");
+    expect(JSON.parse(seenBody)).toEqual({ input: "create 每天早上問候我" });
+    expect(res.status).toBe("ok");
+    expect(res.message).toContain("草稿");
+  });
+
+  it("fails soft on network error", async () => {
+    mockFetch(async () => { throw new Error("offline"); });
+    const res = await runWorkflowCommand("create 每天早上問候我");
+    expect(res.status).toBe("error");
+  });
+});
+
+describe("runWorkflowAction", () => {
+  it("POSTs callback_data to /api/command/workflow", async () => {
+    let seenBody = "";
+    mockFetch(async (_url, init) => {
+      seenBody = init?.body as string;
+      return jsonResponse({ status: "ok", message: "✅ workflow 已儲存", actions: [] });
+    });
+    const res = await runWorkflowAction("wfe:save");
+    expect(JSON.parse(seenBody)).toEqual({ callback_data: "wfe:save" });
+    expect(res.status).toBe("ok");
+  });
+
+  it("fails soft on network error", async () => {
+    mockFetch(async () => { throw new Error("offline"); });
+    const res = await runWorkflowAction("wfe:save");
+    expect(res.status).toBe("error");
+  });
+});
+
+// --- schedule creation loop (web#9) ------------------------------------------
+
+describe("runScheduleHomeCommand", () => {
+  it("POSTs input to /api/command/schedulehome", async () => {
+    let seenUrl = "";
+    let seenBody = "";
+    mockFetch(async (url, init) => {
+      seenUrl = url;
+      seenBody = init?.body as string;
+      return jsonResponse({
+        status: "ok",
+        message: "🕐 設定時間：07:00",
+        actions: [{ label: "✅ 下一步", callback_data: "sh:t:07:00:ok" }],
+      });
+    });
+    const res = await runScheduleHomeCommand("add");
+    expect(seenUrl).toBe("/api/command/schedulehome");
+    expect(JSON.parse(seenBody)).toEqual({ input: "add" });
+    expect(res.status).toBe("ok");
+    expect(res.message).toContain("設定時間");
+  });
+
+  it("POSTs empty string for list command", async () => {
+    let seenBody = "";
+    mockFetch(async (_url, init) => {
+      seenBody = init?.body as string;
+      return jsonResponse({ status: "ok", message: "排程列表（空）", actions: [] });
+    });
+    await runScheduleHomeCommand("");
+    expect(JSON.parse(seenBody)).toEqual({ input: "" });
+  });
+
+  it("fails soft on network error", async () => {
+    mockFetch(async () => { throw new Error("offline"); });
+    const res = await runScheduleHomeCommand("add");
+    expect(res.status).toBe("error");
+  });
+});
+
+describe("runScheduleHomeAction", () => {
+  it("POSTs callback_data to /api/command/schedulehome", async () => {
+    let seenBody = "";
+    mockFetch(async (_url, init) => {
+      seenBody = init?.body as string;
+      return jsonResponse({ status: "ok", message: "已取消", actions: [] });
+    });
+    const res = await runScheduleHomeAction("sh:cancel");
+    expect(JSON.parse(seenBody)).toEqual({ callback_data: "sh:cancel" });
+    expect(res.status).toBe("ok");
+  });
+
+  it("fails soft on network error", async () => {
+    mockFetch(async () => { throw new Error("offline"); });
+    const res = await runScheduleHomeAction("sh:cancel");
     expect(res.status).toBe("error");
   });
 });

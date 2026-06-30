@@ -22,6 +22,8 @@ const MUSIC_URL = "/api/command/music";
 const NOW_PLAYING_URL = "/api/command/music/now";
 const BLUETOOTH_URL = "/api/command/bluetooth";
 const IR_URL = "/api/command/ir";
+const WORKFLOW_URL = "/api/command/workflow";
+const SCHEDULE_URL = "/api/command/schedulehome";
 const SESSION_URL = "/api/command/session";
 const RESTART_ALL_URL = "/api/command/restartall";
 
@@ -228,6 +230,64 @@ export async function runIrCommand(input: string): Promise<ActionResponse> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+    });
+    return (await res.json()) as ActionResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+// --- workflow creation loop (web#8) -----------------------------------------
+// The workflow endpoint handles both NL draft creation ("create <description>")
+// and wfe:* editor button callbacks (reorder / delete / save / cancel a draft).
+// The bridge tracks the editor session in memory, so input and button callbacks
+// against the same _WF_WEB_CHAT_ID are automatically correlated server-side.
+
+export async function runWorkflowCommand(input: string): Promise<ActionResponse> {
+  try {
+    const res = await fetch(WORKFLOW_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input }),
+    });
+    return (await res.json()) as ActionResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+export async function runWorkflowAction(callbackData: string): Promise<ActionResponse> {
+  try {
+    const res = await fetch(WORKFLOW_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_data: callbackData }),
+    });
+    return (await res.json()) as ActionResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+export async function runScheduleHomeCommand(input: string): Promise<ActionResponse> {
+  try {
+    const res = await fetch(SCHEDULE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input }),
+    });
+    return (await res.json()) as ActionResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+export async function runScheduleHomeAction(callbackData: string): Promise<ActionResponse> {
+  try {
+    const res = await fetch(SCHEDULE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_data: callbackData }),
     });
     return (await res.json()) as ActionResponse;
   } catch (err) {

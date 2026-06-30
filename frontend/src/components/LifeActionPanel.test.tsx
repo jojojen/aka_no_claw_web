@@ -12,6 +12,8 @@ function renderPanel(overrides: Partial<{
   onMusicAction: (cb: string) => void;
   onBluetoothScan: () => void;
   onAppliancePower: () => void;
+  onWorkflowList: () => void;
+  onScheduleList: () => void;
 }> = {}) {
   return render(
     <LifeActionPanel
@@ -19,6 +21,8 @@ function renderPanel(overrides: Partial<{
       onMusicAction={overrides.onMusicAction ?? vi.fn()}
       onBluetoothScan={overrides.onBluetoothScan ?? vi.fn()}
       onAppliancePower={overrides.onAppliancePower ?? vi.fn()}
+      onWorkflowList={overrides.onWorkflowList ?? vi.fn()}
+      onScheduleList={overrides.onScheduleList ?? vi.fn()}
     />,
   );
 }
@@ -88,7 +92,7 @@ describe("LifeActionPanel — music controls (#3/#4)", () => {
     const buttons = screen
       .getAllByRole("button")
       // category toggles stay enabled so the user can still switch tabs
-      .filter((b) => !/音樂|藍牙|家電/.test(b.textContent ?? ""));
+      .filter((b) => !/音樂|藍牙|家電|工作流|排程/.test(b.textContent ?? ""));
     expect(buttons.length).toBeGreaterThan(0);
     buttons.forEach((btn) =>
       expect((btn as HTMLButtonElement).disabled).toBe(true),

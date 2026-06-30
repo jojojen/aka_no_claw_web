@@ -1,5 +1,15 @@
-import type { Message } from "../types/command";
+import type { ActionButton, Message } from "../types/command";
 import { FlatActionButton } from "./FlatActionButton";
+
+function groupByRow(actions: ActionButton[]): ActionButton[][] {
+  const map = new Map<number, ActionButton[]>();
+  for (const a of actions) {
+    const r = a.row ?? 0;
+    if (!map.has(r)) map.set(r, []);
+    map.get(r)!.push(a);
+  }
+  return [...map.keys()].sort((a, b) => a - b).map((k) => map.get(k)!);
+}
 
 type Props = {
   message: Message;
@@ -26,18 +36,22 @@ export function MessageBubble({ message, onAction }: Props) {
         {message.generating && <span className="ml-1 animate-pulse text-accent">▍</span>}
       </div>
       {actions.length > 0 && (
-        <div className="mt-2 flex max-w-[85%] flex-wrap gap-2 self-start">
-          {actions.map((a) => (
-            <FlatActionButton
-              key={a.callback_data}
-              variant="muted"
-              disabled={!canAction}
-              onClick={() =>
-                message.jobId && onAction(message.id, message.jobId, a.callback_data)
-              }
-            >
-              {a.label}
-            </FlatActionButton>
+        <div className="mt-2 flex max-w-[85%] flex-col gap-2 self-start">
+          {groupByRow(actions).map((row, i) => (
+            <div key={i} className="flex flex-wrap gap-2">
+              {row.map((a) => (
+                <FlatActionButton
+                  key={a.callback_data}
+                  variant="muted"
+                  disabled={!canAction}
+                  onClick={() =>
+                    message.jobId && onAction(message.id, message.jobId, a.callback_data)
+                  }
+                >
+                  {a.label}
+                </FlatActionButton>
+              ))}
+            </div>
           ))}
         </div>
       )}
