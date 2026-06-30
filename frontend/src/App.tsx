@@ -117,6 +117,7 @@ export default function App() {
   const workflowMsgIdRef = useRef<string | null>(null);
   const [scheduleActive, setScheduleActive] = useState(false);
   const scheduleMsgIdRef = useRef<string | null>(null);
+  const [lifeCategory, setLifeCategory] = useState<"music" | "bluetooth" | "appliance" | "workflow" | "schedule">("music");
   const abortRef = useRef<AbortController | null>(null);
   const stopPollRef = useRef<(() => void) | null>(null);
 
@@ -625,6 +626,7 @@ export default function App() {
           scheduleMsgIdRef.current = null;
         } else if (isCaptureMode) {
           setScheduleActive(true);
+          scheduleMsgIdRef.current = msgId;
         } else {
           // Interactive sh: buttons (list / picker / management) — no capture.
           // Keep scheduleMsgIdRef so action buttons can re-open capture on the same card.
@@ -714,11 +716,11 @@ export default function App() {
     (text: string) => {
       if (generating) return;
 
-      // Workflow capture: while an editor card is open, all chat text goes to
+      // Workflow capture: while an editor card is open, all input goes to
       // the workflow endpoint. The bridge routes it to the active capture field
       // or treats it as a new subcommand against the existing draft session.
       // The card is updated in place; a user message is appended for history.
-      if (mode === "chat" && workflowActive && workflowMsgIdRef.current) {
+      if (workflowActive && workflowMsgIdRef.current) {
         const cardId = workflowMsgIdRef.current;
         const wfUserMsg: Message = { id: uid(), role: "user", text, modeLabel: MODE_LABELS.workflow };
         setMessages((prev) => [...prev, wfUserMsg]);
@@ -727,9 +729,9 @@ export default function App() {
         return;
       }
 
-      // Schedule capture: while a schedule card is in capture mode, text routes
+      // Schedule capture: while a schedule card is in capture mode, input routes
       // to the schedule endpoint. "完成"/"done"/"結束" closes capture (mayClose=true).
-      if (mode === "chat" && scheduleActive && scheduleMsgIdRef.current) {
+      if (scheduleActive && scheduleMsgIdRef.current) {
         const cardId = scheduleMsgIdRef.current;
         const isDone = ["完成", "done", "結束"].includes(text.trim());
         const shUserMsg: Message = { id: uid(), role: "user", text, modeLabel: MODE_LABELS.schedule };
@@ -759,7 +761,22 @@ export default function App() {
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
 
       if (mode === "life") {
-        void runLifeCard(assistantId, () => runMusicCommand(text), MUSIC_JOB_ID);
+        if (lifeCategory === "music") {
+          void runLifeCard(assistantId, () => runMusicCommand(text), MUSIC_JOB_ID);
+        } else {
+          const req: WebCommandRequest = {
+            mode: "chat",
+            submode: null,
+            input: text,
+            chat_backend: chatBackend,
+            attachments: [],
+            source: SOURCE,
+            history: [],
+            session_id: getOrCreateSessionId(),
+            conversation_id: CONVERSATION_ID,
+          };
+          void runStreaming(req, assistantId, () => {});
+        }
         return;
       }
 
@@ -788,7 +805,7 @@ export default function App() {
         void runBlocking(req, assistantId, label);
       }
     },
-    [generating, mode, investmentSubmode, workflowActive, scheduleActive, messages, buildRequest, patch, runStreaming, runPolling, runBlocking, runLifeCard, runWorkflowCard, runScheduleCard],
+    [generating, mode, lifeCategory, investmentSubmode, workflowActive, scheduleActive, messages, buildRequest, patch, runStreaming, runPolling, runBlocking, runLifeCard, runWorkflowCard, runScheduleCard],
   );
 
   const onChatBackendChange = useCallback(
@@ -1066,6 +1083,7 @@ export default function App() {
             onAppliancePower={onAppliancePower}
             onWorkflowList={onWorkflowList}
             onScheduleList={onScheduleList}
+            onCategoryChange={setLifeCategory}
           />
         </div>
       )}

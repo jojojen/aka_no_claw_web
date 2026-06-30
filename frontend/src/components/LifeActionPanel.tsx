@@ -41,6 +41,7 @@ type Props = {
   onAppliancePower: () => void;
   onWorkflowList: () => void;
   onScheduleList: () => void;
+  onCategoryChange?: (category: Category) => void;
 };
 
 export function LifeActionPanel({
@@ -50,27 +51,33 @@ export function LifeActionPanel({
   onAppliancePower,
   onWorkflowList,
   onScheduleList,
+  onCategoryChange,
 }: Props) {
   const [category, setCategory] = useState<Category>("music");
+
+  function switchCategory(next: Category) {
+    setCategory(next);
+    onCategoryChange?.(next);
+  }
 
   return (
     <div className="flex flex-col gap-2">
       <div className="grid grid-cols-3 gap-2">
         <FlatActionButton
           variant={category === "music" ? "active" : "muted"}
-          onClick={() => setCategory("music")}
+          onClick={() => switchCategory("music")}
         >
           🎵 音樂
         </FlatActionButton>
         <FlatActionButton
           variant={category === "bluetooth" ? "active" : "muted"}
-          onClick={() => setCategory("bluetooth")}
+          onClick={() => switchCategory("bluetooth")}
         >
           🔵 藍牙
         </FlatActionButton>
         <FlatActionButton
           variant={category === "appliance" ? "active" : "muted"}
-          onClick={() => setCategory("appliance")}
+          onClick={() => switchCategory("appliance")}
         >
           🏠 家電
         </FlatActionButton>
@@ -78,13 +85,13 @@ export function LifeActionPanel({
       <div className="grid grid-cols-2 gap-2">
         <FlatActionButton
           variant={category === "workflow" ? "active" : "muted"}
-          onClick={() => setCategory("workflow")}
+          onClick={() => switchCategory("workflow")}
         >
           🔄 工作流
         </FlatActionButton>
         <FlatActionButton
           variant={category === "schedule" ? "active" : "muted"}
-          onClick={() => setCategory("schedule")}
+          onClick={() => switchCategory("schedule")}
         >
           📅 排程
         </FlatActionButton>

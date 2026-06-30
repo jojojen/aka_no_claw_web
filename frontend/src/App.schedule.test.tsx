@@ -49,6 +49,7 @@ const mockStream = vi.mocked(client.streamCommand);
 const mockScheduleCommand = vi.mocked(client.runScheduleHomeCommand);
 const mockScheduleAction = vi.mocked(client.runScheduleHomeAction);
 const mockWorkflowCommand = vi.mocked(client.runWorkflowCommand);
+const mockMusicCommand = vi.mocked(client.runMusicCommand);
 
 function emptySession() {
   return { status: "ok" as const, session: emptySnapshot() };
@@ -87,7 +88,7 @@ const CANCEL_RESPONSE = {
 };
 
 function sendText(text: string) {
-  fireEvent.change(screen.getByPlaceholderText("輸入訊息..."), {
+  fireEvent.change(screen.getByRole("textbox"), {
     target: { value: text },
   });
   fireEvent.click(screen.getByText("送出"));
@@ -100,6 +101,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+  mockScheduleCommand.mockReset();
 });
 
 describe("App — schedule creation loop (web#9)", () => {
@@ -293,6 +295,35 @@ describe("App — LifeActionPanel schedule/workflow list entry points (web#9)", 
       expect(mockScheduleCommand).toHaveBeenCalledWith("add_for_wf wf-greet"),
     );
     await waitFor(() => screen.getByText(/設定時間/));
+  });
+
+  it("生活 mode schedule capture routes 完成 to schedule instead of music", async () => {
+    mockWorkflowCommand.mockResolvedValue({
+      status: "ok",
+      message: "📋 Workflows",
+      actions: [{ label: "▶️ 排程執行 wf-greet", callback_data: "add_for_wf wf-greet" }],
+    });
+    mockScheduleCommand
+      .mockResolvedValueOnce(TIME_PICKER)
+      .mockResolvedValueOnce(CAPTURE_HINT)
+      .mockResolvedValueOnce(DONE_RESPONSE);
+    mockScheduleAction.mockResolvedValue(CAPTURE_HINT);
+    await renderLifeMode();
+
+    fireEvent.click(screen.getByText("🔄 工作流"));
+    fireEvent.click(screen.getByText("📋 工作流列表"));
+    await waitFor(() => screen.getByText("▶️ 排程執行 wf-greet"));
+
+    fireEvent.click(screen.getByText("▶️ 排程執行 wf-greet"));
+    await waitFor(() => screen.getByText("✅ 下一步"));
+
+    fireEvent.click(screen.getByText("✅ 下一步"));
+    await waitFor(() => screen.getByText(/排程設定中/));
+
+    sendText("完成");
+
+    await waitFor(() => expect(mockScheduleCommand).toHaveBeenCalledWith("完成"));
+    expect(mockMusicCommand).not.toHaveBeenCalledWith("完成");
   });
 });
 
