@@ -1,10 +1,9 @@
-import { useState } from "react";
 import { FlatActionButton } from "./FlatActionButton";
 
 // 生活 mode splits into categories (web#7 + IR controls + web#9): 音樂, 藍牙, 家電, 工作流, 排程.
 // The category toggle is local UI state; actions route through the bridge so the phone
 // never reimplements playback, Bluetooth, IR, workflow, or schedule logic.
-type Category = "music" | "bluetooth" | "appliance" | "workflow" | "schedule";
+export type LifeCategory = "music" | "bluetooth" | "appliance" | "workflow" | "schedule";
 
 // Music controls (web#3 + #4). These are the only hardcoded music buttons;
 // folders/songs/favorites — and the 切換音源 output-device picker (music:dev) —
@@ -41,7 +40,8 @@ type Props = {
   onAppliancePower: () => void;
   onWorkflowList: () => void;
   onScheduleList: () => void;
-  onCategoryChange?: (category: Category) => void;
+  category: LifeCategory;
+  onCategoryChange: (category: LifeCategory) => void;
 };
 
 export function LifeActionPanel({
@@ -51,13 +51,11 @@ export function LifeActionPanel({
   onAppliancePower,
   onWorkflowList,
   onScheduleList,
+  category,
   onCategoryChange,
 }: Props) {
-  const [category, setCategory] = useState<Category>("music");
-
-  function switchCategory(next: Category) {
-    setCategory(next);
-    onCategoryChange?.(next);
+  function switchCategory(next: LifeCategory) {
+    onCategoryChange(next);
   }
 
   return (

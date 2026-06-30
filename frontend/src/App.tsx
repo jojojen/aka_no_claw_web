@@ -46,6 +46,7 @@ import { InvestmentActionPanel } from "./components/InvestmentActionPanel";
 import { LifeActionPanel } from "./components/LifeActionPanel";
 import { ConversationStream } from "./components/ConversationStream";
 import { InputBar } from "./components/InputBar";
+import type { LifeCategory } from "./components/LifeActionPanel";
 
 const SOURCE = "aka_no_claw_web";
 
@@ -92,10 +93,14 @@ const MODE_LABELS: Record<string, string> = {
   schedule: "排程",
 };
 
-function placeholderFor(mode: Mode, submode: Submode): string {
+function placeholderFor(mode: Mode, submode: Submode, lifeCategory: LifeCategory): string {
   if (mode === "chat") return "輸入訊息...";
   if (mode === "translation") return "翻譯成繁體中文...";
-  if (mode === "life") return "輸入歌名播放，或用上方按鈕控制...";
+  if (mode === "life") {
+    return lifeCategory === "music"
+      ? "輸入歌名播放，或用上方按鈕控制..."
+      : "輸入訊息...";
+  }
   if (submode === "seller_reputation_snapshot") return "貼上賣家 URL 或輸入賣家識別資訊...";
   return "貼上商品 URL 或輸入商品名稱...";
 }
@@ -117,7 +122,7 @@ export default function App() {
   const workflowMsgIdRef = useRef<string | null>(null);
   const [scheduleActive, setScheduleActive] = useState(false);
   const scheduleMsgIdRef = useRef<string | null>(null);
-  const [lifeCategory, setLifeCategory] = useState<"music" | "bluetooth" | "appliance" | "workflow" | "schedule">("music");
+  const [lifeCategory, setLifeCategory] = useState<LifeCategory>("music");
   const abortRef = useRef<AbortController | null>(null);
   const stopPollRef = useRef<(() => void) | null>(null);
 
@@ -131,8 +136,8 @@ export default function App() {
   }
 
   const placeholder = useMemo(
-    () => placeholderFor(mode, investmentSubmode),
-    [mode, investmentSubmode],
+    () => placeholderFor(mode, investmentSubmode, lifeCategory),
+    [mode, investmentSubmode, lifeCategory],
   );
 
   // Restore the session from the Mac mini on open. A failure (offline / corrupt
@@ -595,6 +600,32 @@ export default function App() {
     [patch],
   );
 
+  const runWorkflowResultCard = useCallback(
+    async (msgId: string, call: () => Promise<ActionResponse>) => {
+      setGenerating(true);
+      try {
+        const res = await call();
+        patch(msgId, {
+          text: res.message,
+          status: res.status === "error" ? "error" : "ok",
+          modeLabel: MODE_LABELS.workflow,
+          actions: res.actions?.length ? res.actions : undefined,
+          jobId: WORKFLOW_JOB_ID,
+          generating: false,
+        });
+      } catch (err) {
+        patch(msgId, {
+          text: `無法連線到本機 command bridge（${String(err)}）`,
+          status: "error",
+          generating: false,
+        });
+      } finally {
+        setGenerating(false);
+      }
+    },
+    [patch],
+  );
+
   // Capture mode (scheduleActive=true) means the bridge is waiting for the user
   // to type slash commands into the chat input. It is ONLY open when the response
   // has no actions (pure text prompt) or only sh:done / sh:cancel buttons.
@@ -715,6 +746,8 @@ export default function App() {
   const onSend = useCallback(
     (text: string) => {
       if (generating) return;
+      const lifeRoutesToChat = mode === "life" && lifeCategory !== "music";
+      const chatLikeMode = mode === "chat" || lifeRoutesToChat;
 
       // Workflow capture: while an editor card is open, all input goes to
       // the workflow endpoint. The bridge routes it to the active capture field
@@ -742,7 +775,7 @@ export default function App() {
       }
 
       const label =
-        mode === "chat"
+        chatLikeMode
           ? MODE_LABELS.chat
           : mode === "translation"
             ? MODE_LABELS.text_translation
@@ -760,29 +793,26 @@ export default function App() {
       };
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
 
-      if (mode === "life") {
-        if (lifeCategory === "music") {
-          void runLifeCard(assistantId, () => runMusicCommand(text), MUSIC_JOB_ID);
-        } else {
-          const req: WebCommandRequest = {
-            mode: "chat",
+      if (mode === "life" && lifeCategory === "music") {
+        void runLifeCard(assistantId, () => runMusicCommand(text), MUSIC_JOB_ID);
+        return;
+      }
+
+      const history = chatLikeMode ? buildChatHistory(messages) : [];
+      const req = chatLikeMode
+        ? {
+            mode: "chat" as const,
             submode: null,
             input: text,
             chat_backend: chatBackend,
             attachments: [],
             source: SOURCE,
-            history: [],
+            history,
             session_id: getOrCreateSessionId(),
             conversation_id: CONVERSATION_ID,
-          };
-          void runStreaming(req, assistantId, () => {});
-        }
-        return;
-      }
-
-      const history = mode === "chat" ? buildChatHistory(messages) : [];
-      const req = buildRequest(text, history);
-      if (mode === "chat") {
+          }
+        : buildRequest(text, history);
+      if (chatLikeMode) {
         // Backend embedding fast-path may emit a redirect event for workflow
         // creation requests. The onRedirect callback re-routes here without a
         // round-trip to the slow LLM router.
@@ -805,7 +835,7 @@ export default function App() {
         void runBlocking(req, assistantId, label);
       }
     },
-    [generating, mode, lifeCategory, investmentSubmode, workflowActive, scheduleActive, messages, buildRequest, patch, runStreaming, runPolling, runBlocking, runLifeCard, runWorkflowCard, runScheduleCard],
+    [generating, mode, lifeCategory, chatBackend, investmentSubmode, workflowActive, scheduleActive, messages, buildRequest, patch, runStreaming, runPolling, runBlocking, runLifeCard, runWorkflowCard, runScheduleCard],
   );
 
   const onChatBackendChange = useCallback(
@@ -921,16 +951,41 @@ export default function App() {
         return;
       }
       if (jobId === WORKFLOW_JOB_ID) {
-        // "排程執行" button on the workflow list: opens a new schedule card for
-        // this workflow (add_for_wf <id>) without touching the workflow editor state.
-        if (callbackData.startsWith("add_for_wf ")) {
+        // List buttons use wf:* callbacks; the editor uses wfe:* callbacks.
+        if (callbackData.startsWith("wf:schedule:")) {
+          const wfId = callbackData.slice("wf:schedule:".length);
           const schedId = uid();
           setMessages((prev) => [
             ...prev,
             { id: schedId, role: "assistant", text: "", modeLabel: MODE_LABELS.schedule, generating: true },
           ]);
           patch(messageId, { generating: false });
-          await runScheduleCard(schedId, () => runScheduleHomeCommand(callbackData));
+          await runScheduleCard(schedId, () => runScheduleHomeCommand(`add_for_wf ${wfId}`));
+          return;
+        }
+        if (callbackData.startsWith("wf:run:")) {
+          const wfId = callbackData.slice("wf:run:".length);
+          const runId = uid();
+          setMessages((prev) => [
+            ...prev,
+            { id: runId, role: "assistant", text: "", modeLabel: MODE_LABELS.workflow, generating: true },
+          ]);
+          patch(messageId, { generating: false });
+          await runWorkflowResultCard(runId, () => runWorkflowCommand(`run ${wfId}`));
+          return;
+        }
+        if (callbackData.startsWith("wf:delete:")) {
+          const wfId = callbackData.slice("wf:delete:".length);
+          await runWorkflowCard(messageId, async () => {
+            const deleted = await runWorkflowCommand(`delete ${wfId}`);
+            if (deleted.status === "error") return deleted;
+            const listed = await runWorkflowCommand("list");
+            return {
+              ...listed,
+              message: `${deleted.message}\n\n${listed.message}`,
+              status: listed.status === "error" ? listed.status : deleted.status,
+            };
+          });
           return;
         }
         const mayClose = callbackData === "wfe:save" || callbackData === "wfe:cancel";
@@ -958,7 +1013,7 @@ export default function App() {
         });
       }
     },
-    [patch, runLifeCard, runWorkflowCard, runScheduleCard],
+    [patch, runLifeCard, runWorkflowCard, runWorkflowResultCard, runScheduleCard],
   );
 
   return (
@@ -1078,6 +1133,7 @@ export default function App() {
         <div className="border-b border-muted px-3 py-3">
           <LifeActionPanel
             disabled={generating}
+            category={lifeCategory}
             onMusicAction={onMusicPanel}
             onBluetoothScan={onBluetoothScan}
             onAppliancePower={onAppliancePower}

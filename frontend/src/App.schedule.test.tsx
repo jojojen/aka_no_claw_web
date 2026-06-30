@@ -95,13 +95,19 @@ function sendText(text: string) {
 }
 
 beforeEach(() => {
+  vi.mocked(client.saveSession).mockReset();
   vi.mocked(client.saveSession).mockResolvedValue({ status: "ok" });
+  mockLoad.mockReset();
   mockLoad.mockResolvedValue(emptySession());
+  mockStream.mockReset();
+  mockScheduleCommand.mockReset();
+  mockScheduleAction.mockReset();
+  mockWorkflowCommand.mockReset();
+  mockMusicCommand.mockReset();
 });
 
 afterEach(() => {
   vi.clearAllMocks();
-  mockScheduleCommand.mockReset();
 });
 
 describe("App — schedule creation loop (web#9)", () => {
@@ -264,7 +270,11 @@ describe("App — LifeActionPanel schedule/workflow list entry points (web#9)", 
     mockWorkflowCommand.mockResolvedValue({
       status: "ok",
       message: "📋 Workflows",
-      actions: [{ label: "▶️ 排程執行 wf-greet", callback_data: "add_for_wf wf-greet" }],
+      actions: [
+        { label: "▶️ 執行 wf-greet", callback_data: "wf:run:wf-greet" },
+        { label: "📅 排程執行 wf-greet", callback_data: "wf:schedule:wf-greet" },
+        { label: "🗑 刪除 wf-greet", callback_data: "wf:delete:wf-greet" },
+      ],
     });
     await renderLifeMode();
 
@@ -272,24 +282,65 @@ describe("App — LifeActionPanel schedule/workflow list entry points (web#9)", 
     fireEvent.click(screen.getByText("📋 工作流列表"));
 
     await waitFor(() => expect(mockWorkflowCommand).toHaveBeenCalledWith("list"));
-    // The action button "▶️ 排程執行 wf-greet" should appear.
-    await waitFor(() => screen.getByText("▶️ 排程執行 wf-greet"));
+    await waitFor(() => screen.getByText("▶️ 執行 wf-greet"));
+    await waitFor(() => screen.getByText("📅 排程執行 wf-greet"));
+    await waitFor(() => screen.getByText("🗑 刪除 wf-greet"));
   });
 
-  it("▶️ 排程執行 button calls runScheduleHomeCommand('add_for_wf <id>')", async () => {
+  it("▶️ 執行 button calls runWorkflowCommand('run <id>')", async () => {
     mockWorkflowCommand.mockResolvedValue({
       status: "ok",
       message: "📋 Workflows",
-      actions: [{ label: "▶️ 排程執行 wf-greet", callback_data: "add_for_wf wf-greet" }],
+      actions: [
+        { label: "▶️ 執行 wf-greet", callback_data: "wf:run:wf-greet" },
+        { label: "📅 排程執行 wf-greet", callback_data: "wf:schedule:wf-greet" },
+        { label: "🗑 刪除 wf-greet", callback_data: "wf:delete:wf-greet" },
+      ],
+    });
+    mockWorkflowCommand.mockResolvedValueOnce({
+      status: "ok",
+      message: "📋 Workflows",
+      actions: [
+        { label: "▶️ 執行 wf-greet", callback_data: "wf:run:wf-greet" },
+        { label: "📅 排程執行 wf-greet", callback_data: "wf:schedule:wf-greet" },
+        { label: "🗑 刪除 wf-greet", callback_data: "wf:delete:wf-greet" },
+      ],
+    });
+    mockWorkflowCommand.mockResolvedValueOnce({
+      status: "ok",
+      message: "workflow executed",
+      actions: [],
+    });
+    await renderLifeMode();
+
+    fireEvent.click(screen.getByText("🔄 工作流"));
+    fireEvent.click(screen.getByText("📋 工作流列表"));
+    await waitFor(() => screen.getByText("▶️ 執行 wf-greet"));
+
+    fireEvent.click(screen.getByText("▶️ 執行 wf-greet"));
+
+    await waitFor(() => expect(mockWorkflowCommand).toHaveBeenCalledWith("run wf-greet"));
+    await waitFor(() => screen.getByText("workflow executed"));
+  });
+
+  it("📅 排程執行 button calls runScheduleHomeCommand('add_for_wf <id>')", async () => {
+    mockWorkflowCommand.mockResolvedValue({
+      status: "ok",
+      message: "📋 Workflows",
+      actions: [
+        { label: "▶️ 執行 wf-greet", callback_data: "wf:run:wf-greet" },
+        { label: "📅 排程執行 wf-greet", callback_data: "wf:schedule:wf-greet" },
+        { label: "🗑 刪除 wf-greet", callback_data: "wf:delete:wf-greet" },
+      ],
     });
     mockScheduleCommand.mockResolvedValue(TIME_PICKER);
     await renderLifeMode();
 
     fireEvent.click(screen.getByText("🔄 工作流"));
     fireEvent.click(screen.getByText("📋 工作流列表"));
-    await waitFor(() => screen.getByText("▶️ 排程執行 wf-greet"));
+    await waitFor(() => screen.getByText("📅 排程執行 wf-greet"));
 
-    fireEvent.click(screen.getByText("▶️ 排程執行 wf-greet"));
+    fireEvent.click(screen.getByText("📅 排程執行 wf-greet"));
 
     await waitFor(() =>
       expect(mockScheduleCommand).toHaveBeenCalledWith("add_for_wf wf-greet"),
@@ -297,11 +348,53 @@ describe("App — LifeActionPanel schedule/workflow list entry points (web#9)", 
     await waitFor(() => screen.getByText(/設定時間/));
   });
 
+  it("🗑 刪除 button calls runWorkflowCommand('delete <id>') then refreshes list", async () => {
+    mockWorkflowCommand
+      .mockResolvedValueOnce({
+        status: "ok",
+        message: "📋 Workflows",
+        actions: [
+          { label: "▶️ 執行 wf-greet", callback_data: "wf:run:wf-greet" },
+          { label: "📅 排程執行 wf-greet", callback_data: "wf:schedule:wf-greet" },
+          { label: "🗑 刪除 wf-greet", callback_data: "wf:delete:wf-greet" },
+        ],
+      })
+      .mockResolvedValueOnce({
+        status: "ok",
+        message: "✅ 已刪除 workflow 'wf-greet'",
+        actions: [],
+      })
+      .mockResolvedValueOnce({
+        status: "ok",
+        message: "📋 Workflows\n• wf-other：其它（1 步驟）",
+        actions: [
+          { label: "▶️ 執行 wf-other", callback_data: "wf:run:wf-other" },
+          { label: "📅 排程執行 wf-other", callback_data: "wf:schedule:wf-other" },
+          { label: "🗑 刪除 wf-other", callback_data: "wf:delete:wf-other" },
+        ],
+      });
+    await renderLifeMode();
+
+    fireEvent.click(screen.getByText("🔄 工作流"));
+    fireEvent.click(screen.getByText("📋 工作流列表"));
+    await waitFor(() => screen.getByText("🗑 刪除 wf-greet"));
+
+    fireEvent.click(screen.getByText("🗑 刪除 wf-greet"));
+
+    await waitFor(() => expect(mockWorkflowCommand).toHaveBeenCalledWith("delete wf-greet"));
+    await waitFor(() => expect(mockWorkflowCommand).toHaveBeenLastCalledWith("list"));
+    await waitFor(() => screen.getByText(/已刪除 workflow 'wf-greet'/));
+    await waitFor(() => screen.getByText("🗑 刪除 wf-other"));
+  });
+
   it("生活 mode schedule capture routes 完成 to schedule instead of music", async () => {
     mockWorkflowCommand.mockResolvedValue({
       status: "ok",
       message: "📋 Workflows",
-      actions: [{ label: "▶️ 排程執行 wf-greet", callback_data: "add_for_wf wf-greet" }],
+      actions: [
+        { label: "▶️ 執行 wf-greet", callback_data: "wf:run:wf-greet" },
+        { label: "📅 排程執行 wf-greet", callback_data: "wf:schedule:wf-greet" },
+      ],
     });
     mockScheduleCommand
       .mockResolvedValueOnce(TIME_PICKER)
@@ -312,9 +405,9 @@ describe("App — LifeActionPanel schedule/workflow list entry points (web#9)", 
 
     fireEvent.click(screen.getByText("🔄 工作流"));
     fireEvent.click(screen.getByText("📋 工作流列表"));
-    await waitFor(() => screen.getByText("▶️ 排程執行 wf-greet"));
+    await waitFor(() => screen.getByText("📅 排程執行 wf-greet"));
 
-    fireEvent.click(screen.getByText("▶️ 排程執行 wf-greet"));
+    fireEvent.click(screen.getByText("📅 排程執行 wf-greet"));
     await waitFor(() => screen.getByText("✅ 下一步"));
 
     fireEvent.click(screen.getByText("✅ 下一步"));
@@ -333,7 +426,10 @@ describe("App — capture-mode not opened by list/picker responses (web#9)", () 
     mockWorkflowCommand.mockResolvedValue({
       status: "ok",
       message: "📋 Workflows",
-      actions: [{ label: "▶️ 排程執行 wf-greet", callback_data: "add_for_wf wf-greet" }],
+      actions: [
+        { label: "▶️ 執行 wf-greet", callback_data: "wf:run:wf-greet" },
+        { label: "📅 排程執行 wf-greet", callback_data: "wf:schedule:wf-greet" },
+      ],
     });
     mockStream.mockImplementation(async (_req, onEvent) => {
       onEvent({ type: "done", message: "普通聊天回覆" });
@@ -346,18 +442,14 @@ describe("App — capture-mode not opened by list/picker responses (web#9)", () 
     fireEvent.click(screen.getByText("生活"));
     fireEvent.click(screen.getByText("🔄 工作流"));
     fireEvent.click(screen.getByText("📋 工作流列表"));
-    await waitFor(() => screen.getByText("▶️ 排程執行 wf-greet"));
+    await waitFor(() => screen.getByText("▶️ 執行 wf-greet"));
 
-    // Switch back to chat mode — workflowActive must be false so text goes to stream.
-    fireEvent.click(screen.getByText("Chat"));
-    fireEvent.change(screen.getByPlaceholderText("輸入訊息..."), {
-      target: { value: "普通聊天" },
-    });
-    fireEvent.click(screen.getByText("送出"));
+    sendText("普通聊天");
 
     await waitFor(() => screen.getByText("普通聊天回覆"));
     expect(mockStream).toHaveBeenCalledTimes(1);
     expect(mockWorkflowCommand).not.toHaveBeenCalledWith("普通聊天");
+    expect(mockMusicCommand).not.toHaveBeenCalledWith("普通聊天");
   });
 
   it("after 排程列表, next chat text goes to streamCommand not runScheduleHomeCommand", async () => {
@@ -379,15 +471,11 @@ describe("App — capture-mode not opened by list/picker responses (web#9)", () 
     fireEvent.click(screen.getByText("📅 排程列表"));
     await waitFor(() => screen.getByText("➕ 新增排程"));
 
-    // Switch back to chat mode — scheduleActive must be false so text goes to stream.
-    fireEvent.click(screen.getByText("Chat"));
-    fireEvent.change(screen.getByPlaceholderText("輸入訊息..."), {
-      target: { value: "普通聊天" },
-    });
-    fireEvent.click(screen.getByText("送出"));
+    sendText("普通聊天");
 
     await waitFor(() => screen.getByText("普通聊天回覆"));
     expect(mockStream).toHaveBeenCalledTimes(1);
     expect(mockScheduleCommand).not.toHaveBeenCalledWith("普通聊天");
+    expect(mockMusicCommand).not.toHaveBeenCalledWith("普通聊天");
   });
 });

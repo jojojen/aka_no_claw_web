@@ -5,25 +5,41 @@
 // the scan trigger; discovered devices come back as backend action buttons.
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { useState } from "react";
 import { LifeActionPanel } from "./LifeActionPanel";
 
 function renderPanel(overrides: Partial<{
   disabled: boolean;
+  category: "music" | "bluetooth" | "appliance" | "workflow" | "schedule";
   onMusicAction: (cb: string) => void;
   onBluetoothScan: () => void;
   onAppliancePower: () => void;
   onWorkflowList: () => void;
   onScheduleList: () => void;
+  onCategoryChange: (category: "music" | "bluetooth" | "appliance" | "workflow" | "schedule") => void;
 }> = {}) {
+  function Harness() {
+    const [category, setCategory] = useState<"music" | "bluetooth" | "appliance" | "workflow" | "schedule">(
+      overrides.category ?? "music",
+    );
+    return (
+      <LifeActionPanel
+        disabled={overrides.disabled ?? false}
+        category={category}
+        onMusicAction={overrides.onMusicAction ?? vi.fn()}
+        onBluetoothScan={overrides.onBluetoothScan ?? vi.fn()}
+        onAppliancePower={overrides.onAppliancePower ?? vi.fn()}
+        onWorkflowList={overrides.onWorkflowList ?? vi.fn()}
+        onScheduleList={overrides.onScheduleList ?? vi.fn()}
+        onCategoryChange={(next) => {
+          setCategory(next);
+          overrides.onCategoryChange?.(next);
+        }}
+      />
+    );
+  }
   return render(
-    <LifeActionPanel
-      disabled={overrides.disabled ?? false}
-      onMusicAction={overrides.onMusicAction ?? vi.fn()}
-      onBluetoothScan={overrides.onBluetoothScan ?? vi.fn()}
-      onAppliancePower={overrides.onAppliancePower ?? vi.fn()}
-      onWorkflowList={overrides.onWorkflowList ?? vi.fn()}
-      onScheduleList={overrides.onScheduleList ?? vi.fn()}
-    />,
+    <Harness />,
   );
 }
 
