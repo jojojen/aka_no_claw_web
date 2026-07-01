@@ -37,6 +37,8 @@ vi.mock("./api/commandClient", () => ({
   runScheduleHomeAction: vi.fn(),
   getNowPlaying: vi.fn().mockResolvedValue(null),
   getModelRoutes: vi.fn().mockResolvedValue({ status: "ok", routes: [] }),
+  getChatSettings: vi.fn().mockResolvedValue({ status: "ok", settings: null }),
+  saveChatSettings: vi.fn(),
   restartAll: vi.fn(),
 }));
 

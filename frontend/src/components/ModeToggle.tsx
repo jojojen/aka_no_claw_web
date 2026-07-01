@@ -24,7 +24,7 @@ export function ModeToggle({ mode, onChange }: Props) {
             aria-selected={active}
             onClick={() => onChange(m.value)}
             className={
-              `flex-1 rounded py-2 text-sm font-medium transition-colors ` +
+              `flex-1 whitespace-nowrap rounded py-2 text-sm font-medium transition-colors ` +
               (active ? "bg-accent text-white" : "bg-muted text-text hover:bg-mutedHover")
             }
           >

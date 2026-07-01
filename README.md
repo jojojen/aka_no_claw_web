@@ -7,6 +7,9 @@ it never reimplements command routing.
 
 Contract / product spec: [`docs/LOCAL_MOBILE_CONSOLE_MVP.md`](docs/LOCAL_MOBILE_CONSOLE_MVP.md).
 
+Before changing the web UI, read the contract above first. Mobile layout rules in
+that document are part of the implementation boundary, not optional polish.
+
 ## Modes
 
 - **Chat** — pure chat (Phase 1, no tool calls). Pick the backend: `本地模型`

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   ChatBackend,
+  ChatSettings,
   ChatHistoryItem,
   Message,
   ModelRoute,
@@ -11,6 +12,7 @@ import type {
 } from "./types/command";
 import {
   clearSession,
+  getChatSettings,
   getModelRoutes,
   getNowPlaying,
   loadSession,
@@ -26,6 +28,7 @@ import {
   runScheduleHomeAction,
   runScheduleHomeCommand,
   saveSession,
+  saveChatSettings,
   sendCommand,
   startAsyncCommand,
   restartAll,
@@ -46,6 +49,7 @@ import { InvestmentActionPanel } from "./components/InvestmentActionPanel";
 import { LifeActionPanel } from "./components/LifeActionPanel";
 import { ConversationStream } from "./components/ConversationStream";
 import { InputBar } from "./components/InputBar";
+import { ChatSettingsModal } from "./components/ChatSettingsModal";
 import type { LifeCategory } from "./components/LifeActionPanel";
 
 const SOURCE = "aka_no_claw_web";
@@ -114,9 +118,13 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [generating, setGenerating] = useState(false);
   const [restored, setRestored] = useState(false);
+  const [restoredChatBackendExplicit, setRestoredChatBackendExplicit] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [chatSettings, setChatSettings] = useState<ChatSettings | null>(null);
   const [nowPlaying, setNowPlaying] = useState<string | null>(null);
   const [workflowActive, setWorkflowActive] = useState(false);
   const workflowMsgIdRef = useRef<string | null>(null);
@@ -140,6 +148,13 @@ export default function App() {
     [mode, investmentSubmode, lifeCategory],
   );
 
+  const refreshModelRoutes = useCallback(async () => {
+    const res = await getModelRoutes();
+    if (res.status === "ok") {
+      setModelRoutes(res.routes);
+    }
+  }, []);
+
   // Restore the session from the Mac mini on open. A failure (offline / corrupt
   // payload) fails soft: start blank and show an in-app banner, never an alert.
   // If a research job was active, attempt to reconnect: done → render result,
@@ -150,9 +165,15 @@ export default function App() {
       const res = await loadSession();
       if (!alive) return;
       const st = fromSnapshot(res.session);
+      const explicitBackend =
+        !!res.session &&
+        typeof res.session === "object" &&
+        typeof res.session.chat_backend === "string" &&
+        res.session.chat_backend.length > 0;
       setMessages(st.messages);
       setMode(st.mode);
       setChatBackend(st.chatBackend);
+      setRestoredChatBackendExplicit(explicitBackend);
       setInvestmentSubmode(st.investmentSubmode);
       if (res.status === "error") {
         setNotice("無法從本機還原工作階段，已開新對話。");
@@ -213,15 +234,24 @@ export default function App() {
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const res = await getModelRoutes();
-      if (alive && res.status === "ok") {
-        setModelRoutes(res.routes);
+      const [routesRes, settingsRes] = await Promise.all([getModelRoutes(), getChatSettings()]);
+      if (!alive) return;
+      if (routesRes.status === "ok") {
+        setModelRoutes(routesRes.routes);
+      }
+      if (settingsRes.status === "ok" && settingsRes.settings) {
+        setChatSettings(settingsRes.settings);
       }
     })();
     return () => {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!restored || restoredChatBackendExplicit || !chatSettings) return;
+    setChatBackend(chatSettings.default_chat_provider);
+  }, [restored, restoredChatBackendExplicit, chatSettings]);
 
   // Persist (debounced) whenever the restorable state changes — but only after
   // the initial restore, so the blank startup state can't clobber saved data.
@@ -854,6 +884,28 @@ export default function App() {
     [modelRoutes],
   );
 
+  const onSaveModelSettings = useCallback(
+    async (draft: ChatSettings) => {
+      const localChanged = chatSettings?.providers.local.model !== draft.providers.local.model;
+      if (localChanged && draft.providers.local.enabled) {
+        setNotice(`正在重新載入本地模型：${draft.providers.local.model}`);
+      }
+      setSavingSettings(true);
+      const res = await saveChatSettings(draft);
+      setSavingSettings(false);
+      if (res.status === "error" || !res.settings) {
+        setNotice(`模型設定儲存失敗：${res.message ?? "未知錯誤"}`);
+        return;
+      }
+      setChatSettings(res.settings);
+      setChatBackend(res.settings.default_chat_provider);
+      setSettingsOpen(false);
+      await refreshModelRoutes();
+      setNotice(res.local_reload?.message ?? res.message ?? "模型設定已儲存。");
+    },
+    [chatSettings, refreshModelRoutes],
+  );
+
   const onSelectImage = useCallback(
     (file: File) => {
       if (generating || mode !== "translation") return;
@@ -1018,24 +1070,26 @@ export default function App() {
 
   return (
     <div className="mx-auto flex h-full max-w-content flex-col bg-surface">
-      <header className="flex items-center justify-between gap-2 border-b border-muted px-4 py-3">
-        <h1 className="text-base font-semibold">OpenClaw 本機控制台</h1>
-        <div className="flex items-center gap-2">
+      <header className="flex items-center gap-2 border-b border-muted px-4 py-3">
+        <h1 className="min-w-0 flex-1 whitespace-nowrap text-sm font-semibold sm:text-base">
+          OpenClaw 本機控制台
+        </h1>
+        <div className="ml-auto flex shrink-0 items-center gap-2 overflow-x-auto">
           {/* While one action is in its confirm state, hide the other button so
               the confirm/cancel controls are easier to tap (web UI request). */}
           {!confirmRestart &&
             (confirmClear ? (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-text/70">清除記憶？</span>
+              <div className="flex items-center gap-2 whitespace-nowrap text-sm">
+                <span className="whitespace-nowrap text-text/70">清除記憶？</span>
                 <button
                   onClick={onClearMemory}
-                  className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                  className="whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
                 >
                   確定清除
                 </button>
                 <button
                   onClick={() => setConfirmClear(false)}
-                  className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+                  className="whitespace-nowrap rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
                 >
                   取消
                 </button>
@@ -1046,7 +1100,7 @@ export default function App() {
                   setConfirmRestart(false);
                   setConfirmClear(true);
                 }}
-                className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+                className="whitespace-nowrap rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
                 title="刪除本機已儲存的工作階段並清空對話"
               >
                 清除記憶
@@ -1054,17 +1108,17 @@ export default function App() {
             ))}
           {!confirmClear &&
             (confirmRestart ? (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-text/70">重啟龍蝦？</span>
+              <div className="flex items-center gap-2 whitespace-nowrap text-sm">
+                <span className="whitespace-nowrap text-text/70">重啟龍蝦？</span>
                 <button
                   onClick={onRestartAll}
-                  className="rounded bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700"
+                  className="whitespace-nowrap rounded bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700"
                 >
                   確定重啟
                 </button>
                 <button
                   onClick={() => setConfirmRestart(false)}
-                  className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+                  className="whitespace-nowrap rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
                 >
                   取消
                 </button>
@@ -1075,12 +1129,22 @@ export default function App() {
                   setConfirmClear(false);
                   setConfirmRestart(true);
                 }}
-                className="rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+                className="whitespace-nowrap rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
                 title="安全重啟龍蝦本機服務"
               >
                 重啟龍蝦
               </button>
             ))}
+          {!confirmClear && !confirmRestart && (
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="shrink-0 whitespace-nowrap rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+              title="聊天模型設定"
+              aria-label="聊天模型設定"
+            >
+              ⚙
+            </button>
+          )}
         </div>
       </header>
 
@@ -1153,6 +1217,14 @@ export default function App() {
         onSend={onSend}
         onStop={onStop}
         onSelectImage={onSelectImage}
+      />
+
+      <ChatSettingsModal
+        open={settingsOpen}
+        settings={chatSettings}
+        saving={savingSettings}
+        onClose={() => setSettingsOpen(false)}
+        onSave={onSaveModelSettings}
       />
     </div>
   );

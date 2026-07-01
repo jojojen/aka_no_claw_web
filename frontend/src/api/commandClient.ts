@@ -1,6 +1,8 @@
 import type {
   ActionResponse,
   AsyncStartResponse,
+  ChatSettings,
+  ChatSettingsResponse,
   CommandResponse,
   JobPollResponse,
   ModelRoutesResponse,
@@ -28,6 +30,7 @@ const SCHEDULE_URL = "/api/command/schedulehome";
 const SESSION_URL = "/api/command/session";
 const RESTART_ALL_URL = "/api/command/restartall";
 const MODEL_ROUTES_URL = "/api/command/model-routes";
+const CHAT_SETTINGS_URL = "/api/command/chat-settings";
 
 // Blocking call — used for short non-chat commands (translation, research).
 export async function sendCommand(req: WebCommandRequest): Promise<CommandResponse> {
@@ -199,6 +202,31 @@ export async function getModelRoutes(): Promise<ModelRoutesResponse> {
     return (await res.json()) as ModelRoutesResponse;
   } catch (err) {
     return { status: "error", routes: [], message: String(err) };
+  }
+}
+
+export async function getChatSettings(): Promise<ChatSettingsResponse> {
+  try {
+    const res = await fetch(CHAT_SETTINGS_URL);
+    if (!res.ok) {
+      return { status: "error", message: `HTTP ${res.status}` };
+    }
+    return (await res.json()) as ChatSettingsResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+export async function saveChatSettings(settings: ChatSettings): Promise<ChatSettingsResponse> {
+  try {
+    const res = await fetch(CHAT_SETTINGS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+    return (await res.json()) as ChatSettingsResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
   }
 }
 
