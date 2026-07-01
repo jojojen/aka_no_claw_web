@@ -15,3 +15,15 @@ body {
   font-family: -apple-system, "Segoe UI", "Noto Sans TC", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+.mint-choice {
+  accent-color: #35d0b6;
+}
+
+.mint-choice:hover:not(:disabled) {
+  accent-color: #2cc4a8;
+}
+
+.mint-choice:disabled {
+  accent-color: #b8e9df;
+}

@@ -3,12 +3,12 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { ChatBackendSelector } from "./ChatBackendSelector";
 
 describe("ChatBackendSelector", () => {
-  it("shows Gemini after Mistral and renames cloud pickle to Big Pickle", () => {
+  it("shows Gemini after Mistral and renames cloud pickle to OpenCode", () => {
     const onChange = vi.fn();
     render(<ChatBackendSelector backend="local" onChange={onChange} />);
 
     const labels = screen.getAllByRole("button").map((b) => b.textContent);
-    expect(labels).toEqual(["雲端池", "Mistral", "Gemini", "Big Pickle", "本地"]);
+    expect(labels).toEqual(["雲端池", "Mistral", "Gemini", "OpenCode", "本地"]);
   });
 
   it("selects the Gemini backend", () => {

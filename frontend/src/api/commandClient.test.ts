@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearSession,
+  getChatSettings,
   getModelRoutes,
   getNowPlaying,
   loadSession,
@@ -14,9 +15,11 @@ import {
   runScheduleHomeCommand,
   runWorkflowAction,
   runWorkflowCommand,
+  saveChatSettings,
   saveSession,
 } from "./commandClient";
 import { emptySnapshot } from "../session";
+import type { ChatSettings } from "../types/command";
 
 function mockFetch(impl: (url: string, init?: RequestInit) => Promise<Response>) {
   vi.stubGlobal("fetch", vi.fn(impl as typeof fetch));
@@ -467,5 +470,76 @@ describe("getModelRoutes", () => {
     expect(seenUrl).toBe("/api/command/model-routes");
     expect(res.status).toBe("ok");
     expect(res.routes[0].backend).toBe("gemini");
+  });
+});
+
+describe("getChatSettings", () => {
+  it("GETs /api/command/chat-settings", async () => {
+    let seenUrl = "";
+    mockFetch(async (url) => {
+      seenUrl = url;
+      return jsonResponse({
+        status: "ok",
+        settings: {
+          default_chat_provider: "cloud_pool",
+          cloud_pool: ["gemini", "mistral", "big_pickle"],
+          default_provider_options: [],
+          providers: {
+            gemini: { label: "Gemini", enabled: true, model: "gemini-2.5-flash", configured: true },
+            mistral: { label: "Mistral", enabled: true, model: "mistral-large-latest", configured: false },
+            big_pickle: { label: "OpenCode", enabled: true, model: "big-pickle", configured: true },
+            local: { label: "本地", enabled: true, model: "qwen3:14b", configured: true },
+          },
+          model_options: {
+            gemini: ["gemini-2.5-flash"],
+            mistral: ["mistral-large-latest"],
+            big_pickle: ["big-pickle", "deepseek-v4-flash-free"],
+            local: ["qwen3:14b"],
+          },
+        },
+      });
+    });
+
+    const res = await getChatSettings();
+
+    expect(seenUrl).toBe("/api/command/chat-settings");
+    expect(res.status).toBe("ok");
+    expect(res.settings?.default_chat_provider).toBe("cloud_pool");
+  });
+});
+
+describe("saveChatSettings", () => {
+  it("POSTs the settings payload", async () => {
+    let seenUrl = "";
+    let seenBody = "";
+    mockFetch(async (url, init) => {
+      seenUrl = url;
+      seenBody = init?.body as string;
+      return jsonResponse({ status: "ok", settings: JSON.parse(seenBody) });
+    });
+
+    const payload: ChatSettings = {
+      default_chat_provider: "cloud_pool" as const,
+      cloud_pool: ["mistral", "gemini", "big_pickle"],
+      default_provider_options: [],
+      providers: {
+        gemini: { label: "Gemini", enabled: true, model: "gemini-2.5-pro", configured: true },
+        mistral: { label: "Mistral", enabled: true, model: "mistral-large-latest", configured: true },
+        big_pickle: { label: "OpenCode", enabled: true, model: "big-pickle", configured: true },
+        local: { label: "本地", enabled: true, model: "qwen3:14b", configured: true },
+      },
+      model_options: {
+        gemini: ["gemini-2.5-pro"],
+        mistral: ["mistral-large-latest"],
+        big_pickle: ["big-pickle", "deepseek-v4-flash-free"],
+        local: ["qwen3:14b"],
+      },
+    };
+
+    const res = await saveChatSettings(payload);
+
+    expect(seenUrl).toBe("/api/command/chat-settings");
+    expect(JSON.parse(seenBody).providers.gemini.model).toBe("gemini-2.5-pro");
+    expect(res.status).toBe("ok");
   });
 });

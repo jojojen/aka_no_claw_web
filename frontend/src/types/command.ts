@@ -4,6 +4,7 @@
 
 export type Mode = "chat" | "translation" | "investment" | "life";
 export type ChatBackend = "local" | "cloud_mistral" | "gemini" | "cloud_pickle" | "cloud_pool";
+export type LlmProvider = "gemini" | "mistral" | "big_pickle" | "local";
 
 export type Submode =
   | "text_translation"
@@ -87,6 +88,33 @@ export type ModelRoutesResponse = {
   status: ResponseStatus;
   routes: ModelRoute[];
   message?: string;
+};
+
+export type ChatSettingsProvider = {
+  label: string;
+  enabled: boolean;
+  model: string;
+  configured: boolean;
+};
+
+export type ChatSettings = {
+  default_chat_provider: ChatBackend;
+  cloud_pool: Exclude<LlmProvider, "local">[];
+  default_provider_options: { value: ChatBackend; label: string }[];
+  providers: Record<LlmProvider, ChatSettingsProvider>;
+  model_options: Record<LlmProvider, string[]>;
+};
+
+export type ChatSettingsResponse = {
+  status: ResponseStatus;
+  settings?: ChatSettings;
+  message?: string;
+  local_reload?: {
+    status: "ok" | "error" | "skipped";
+    model?: string;
+    previous_model?: string;
+    message?: string;
+  };
 };
 
 export type CommandResponse = {

@@ -160,6 +160,19 @@ Avoid:
 
 The app should look simple, calm, and utilitarian.
 
+### Mobile Text Layout Guardrail
+
+On phone-width layouts, top-level labels and primary controls must stay on a
+single line. Do not let the header title, top action buttons, mode tabs, or
+chat-model tabs break into stacked two-line labels such as `清除記憶`,
+`重啟龍蝦`, `雲端池`, or `本地`.
+
+Implementation expectation:
+
+- use no-wrap text for these controls
+- keep stable minimum button sizing so labels are not squeezed vertically
+- prefer horizontal scrolling for segmented control rows over multi-line button text
+
 ---
 
 ## Design Tokens
