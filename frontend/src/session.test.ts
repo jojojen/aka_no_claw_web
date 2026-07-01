@@ -65,7 +65,7 @@ describe("fromSnapshot — restore / fail soft", () => {
       const st = fromSnapshot(bad);
       expect(st.messages).toEqual([]);
       expect(st.mode).toBe("chat");
-      expect(st.chatBackend).toBe("local");
+      expect(st.chatBackend).toBe("cloud_pool");
       expect(st.investmentSubmode).toBe("deep_product_research");
       expect(st.activeJobId).toBeNull();
     }
@@ -80,7 +80,7 @@ describe("fromSnapshot — restore / fail soft", () => {
       active_job_id: 12345,
     });
     expect(st.mode).toBe("chat");
-    expect(st.chatBackend).toBe("local");
+    expect(st.chatBackend).toBe("cloud_pool");
     expect(st.investmentSubmode).toBe("deep_product_research");
     expect(st.activeJobId).toBeNull();
   });
@@ -94,6 +94,19 @@ describe("fromSnapshot — restore / fail soft", () => {
     });
 
     expect(st.chatBackend).toBe("gemini");
+  });
+
+  it("defaults to cloud_pool when chat_backend is null or missing", () => {
+    const st1 = fromSnapshot({
+      messages: [],
+      mode: "chat",
+      chat_backend: null,
+      active_job_id: null,
+    });
+    expect(st1.chatBackend).toBe("cloud_pool");
+
+    const st2 = fromSnapshot({ messages: [], mode: "chat" });
+    expect(st2.chatBackend).toBe("cloud_pool");
   });
 });
 

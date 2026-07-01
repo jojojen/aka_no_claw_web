@@ -140,7 +140,7 @@ describe("App — chat continuity (#44)", () => {
     expect(req.history).toBeUndefined();
     expect(req.session_id).toBeUndefined();
     expect(req.chat_backend).toBe("gemini");
-    expect(screen.getByText(/已切換到 Gemini：gemini gemini-2.5-pro/)).toBeDefined();
+    expect(screen.getByText(/已切換到 Gemini：gemini-2.5-pro/)).toBeDefined();
   });
 
   it("shows concrete route info when switching model tabs", async () => {
@@ -167,7 +167,7 @@ describe("App — chat continuity (#44)", () => {
 
     fireEvent.click(screen.getByText("Gemini"));
 
-    await waitFor(() => screen.getByText(/已切換到 Gemini：gemini gemini-2.5-pro/));
+    await waitFor(() => screen.getByText(/已切換到 Gemini：gemini-2.5-pro/));
     expect(screen.queryByText(/gemini-2.5-flash/)).toBeNull();
     expect(screen.queryByText(/Fallback chain/)).toBeNull();
   });

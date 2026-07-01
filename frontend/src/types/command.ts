@@ -3,7 +3,7 @@
 // bridge as an external local API and never reimplements routing.
 
 export type Mode = "chat" | "translation" | "investment" | "life";
-export type ChatBackend = "local" | "cloud_mistral" | "gemini" | "cloud_pickle";
+export type ChatBackend = "local" | "cloud_mistral" | "gemini" | "cloud_pickle" | "cloud_pool";
 
 export type Submode =
   | "text_translation"
@@ -70,6 +70,8 @@ export type ModelMetadata = {
   final_provider: string;
   final_model: string;
   fallback_reason?: string;
+  fallback_occurred?: boolean;
+  requested_tab?: string;
 };
 
 export type ModelRoute = {

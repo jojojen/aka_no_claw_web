@@ -14,12 +14,13 @@ function groupByRow(actions: ActionButton[]): ActionButton[][] {
 function modelMetaText(message: Message): string | null {
   const meta = message.modelMetadata;
   if (!meta || message.role !== "assistant") return null;
-  if (!meta.fallback_reason && meta.attempted_models.length <= 1) return null;
+  const hasFallback = meta.fallback_occurred ?? (!!meta.fallback_reason && meta.attempted_models.length > 1);
+  if (!hasFallback) return null;
   const finalModel = `${meta.final_provider} ${meta.final_model}`;
   const attempted = meta.attempted_models
     .map((a) => `${a.provider} ${a.model}: ${a.status}`)
     .join(" -> ");
-  return `Fallback: ${meta.requested_provider} ${meta.requested_model} -> ${finalModel}。本次回答模型：${finalModel}。原因：${meta.fallback_reason ?? attempted}`;
+  return `本次回答模型：${finalModel}。原因：${meta.fallback_reason ?? attempted}`;
 }
 
 type Props = {

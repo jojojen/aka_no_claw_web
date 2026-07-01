@@ -8,7 +8,7 @@ describe("ChatBackendSelector", () => {
     render(<ChatBackendSelector backend="local" onChange={onChange} />);
 
     const labels = screen.getAllByRole("button").map((b) => b.textContent);
-    expect(labels).toEqual(["本地模型", "Mistral", "Gemini", "Big Pickle"]);
+    expect(labels).toEqual(["雲端池", "Mistral", "Gemini", "Big Pickle", "本地"]);
   });
 
   it("selects the Gemini backend", () => {

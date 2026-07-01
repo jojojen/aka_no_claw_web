@@ -1,10 +1,11 @@
 import type { ChatBackend } from "../types/command";
 
 const BACKENDS: { value: ChatBackend; label: string }[] = [
-  { value: "local", label: "本地模型" },
+  { value: "cloud_pool", label: "雲端池" },
   { value: "cloud_mistral", label: "Mistral" },
   { value: "gemini", label: "Gemini" },
   { value: "cloud_pickle", label: "Big Pickle" },
+  { value: "local", label: "本地" },
 ];
 
 type Props = {

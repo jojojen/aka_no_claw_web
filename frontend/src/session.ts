@@ -79,7 +79,7 @@ export function buildChatHistory(
 }
 
 const MODES: readonly Mode[] = ["chat", "translation", "investment", "life"];
-const BACKENDS: readonly ChatBackend[] = ["local", "cloud_mistral", "gemini", "cloud_pickle"];
+const BACKENDS: readonly ChatBackend[] = ["cloud_pool", "local", "cloud_mistral", "gemini", "cloud_pickle"];
 const SUBMODES: readonly Submode[] = [
   "text_translation",
   "image_translation",
@@ -181,7 +181,7 @@ export function fromSnapshot(raw: unknown): RestoredState {
   const blank: RestoredState = {
     messages: [],
     mode: "chat",
-    chatBackend: "local",
+    chatBackend: "cloud_pool",
     investmentSubmode: "deep_product_research",
     activeJobId: null,
   };
@@ -195,7 +195,7 @@ export function fromSnapshot(raw: unknown): RestoredState {
   return {
     messages,
     mode: oneOf(s.mode, MODES) ? (s.mode as Mode) : "chat",
-    chatBackend: oneOf(s.chat_backend, BACKENDS) ? (s.chat_backend as ChatBackend) : "local",
+    chatBackend: oneOf(s.chat_backend, BACKENDS) ? (s.chat_backend as ChatBackend) : "cloud_pool",
     investmentSubmode: oneOf(s.investment_submode, SUBMODES)
       ? (s.investment_submode as Submode)
       : "deep_product_research",

@@ -107,7 +107,7 @@ function placeholderFor(mode: Mode, submode: Submode, lifeCategory: LifeCategory
 
 export default function App() {
   const [mode, setMode] = useState<Mode>("chat");
-  const [chatBackend, setChatBackend] = useState<ChatBackend>("local");
+  const [chatBackend, setChatBackend] = useState<ChatBackend>("cloud_pool");
   const [modelRoutes, setModelRoutes] = useState<ModelRoute[]>([]);
   const [investmentSubmode, setInvestmentSubmode] =
     useState<Submode>("deep_product_research");
@@ -848,7 +848,7 @@ export default function App() {
       }
       const configured = route.configured ? "" : "（尚未設定 API key，可能退回本地模型）";
       setNotice(
-        `已切換到 ${route.label}：${route.requested_provider} ${route.requested_model}${configured}`,
+        `已切換到 ${route.label}：${route.requested_model}${configured}`,
       );
     },
     [modelRoutes],
