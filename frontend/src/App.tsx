@@ -788,7 +788,7 @@ export default function App() {
         const wfUserMsg: Message = { id: uid(), role: "user", text, modeLabel: MODE_LABELS.workflow };
         setMessages((prev) => [...prev, wfUserMsg]);
         patch(cardId, { generating: true });
-        void runWorkflowCard(cardId, () => runWorkflowCommand(text));
+        void runWorkflowCard(cardId, () => runWorkflowCommand(text, chatBackend));
         return;
       }
 
@@ -849,7 +849,7 @@ export default function App() {
         void runStreaming(req, assistantId, (intent, description, workflowId) => {
           if (intent === "create_workflow") {
             workflowMsgIdRef.current = assistantId;
-            void runWorkflowCard(assistantId, () => runWorkflowCommand(`create ${description}`));
+            void runWorkflowCard(assistantId, () => runWorkflowCommand(`create ${description}`, chatBackend));
           } else if (intent === "create_schedule") {
             scheduleMsgIdRef.current = assistantId;
             const cmd = workflowId ? `add_for_wf ${workflowId}` : "add";
@@ -1072,7 +1072,7 @@ export default function App() {
     <div className="mx-auto flex h-full max-w-content flex-col bg-surface">
       <header className="flex items-center gap-2 border-b border-muted px-4 py-3">
         <h1 className="min-w-0 flex-1 whitespace-nowrap text-sm font-semibold sm:text-base">
-          OpenClaw 本機控制台
+          AkaNoClaw控制台
         </h1>
         <div className="ml-auto flex shrink-0 items-center gap-2 overflow-x-auto">
           {/* While one action is in its confirm state, hide the other button so

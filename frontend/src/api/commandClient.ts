@@ -32,6 +32,16 @@ const RESTART_ALL_URL = "/api/command/restartall";
 const MODEL_ROUTES_URL = "/api/command/model-routes";
 const CHAT_SETTINGS_URL = "/api/command/chat-settings";
 
+function streamUrlCandidates(): string[] {
+  if (typeof window === "undefined") return [STREAM_URL];
+  const urls = [STREAM_URL];
+  const { protocol, hostname, port } = window.location;
+  if (hostname && port !== "8781") {
+    urls.unshift(`${protocol}//${hostname}:8781${STREAM_URL}`);
+  }
+  return Array.from(new Set(urls));
+}
+
 // Blocking call — used for short non-chat commands (translation, research).
 export async function sendCommand(req: WebCommandRequest): Promise<CommandResponse> {
   const res = await fetch(COMMAND_URL, {
@@ -59,12 +69,30 @@ export async function streamCommand(
   onEvent: (event: StreamEvent) => void,
   signal: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(STREAM_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-    signal,
-  });
+  const body = JSON.stringify(req);
+  let res: Response | null = null;
+  let lastError: unknown = null;
+  for (const url of streamUrlCandidates()) {
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        signal,
+      });
+      if (res.ok && res.body) break;
+      if (url !== STREAM_URL) {
+        res = null;
+        continue;
+      }
+      break;
+    } catch (err) {
+      lastError = err;
+      if (url === STREAM_URL) throw err;
+    }
+  }
+  if (!res && lastError) throw lastError;
+  if (!res) throw new Error("stream connection failed");
   if (!res.ok || !res.body) {
     let message = `HTTP ${res.status}`;
     try {
@@ -285,12 +313,13 @@ export async function runIrCommand(input: string): Promise<ActionResponse> {
 // The bridge tracks the editor session in memory, so input and button callbacks
 // against the same _WF_WEB_CHAT_ID are automatically correlated server-side.
 
-export async function runWorkflowCommand(input: string): Promise<ActionResponse> {
+export async function runWorkflowCommand(input: string, chatBackend?: string): Promise<ActionResponse> {
   try {
+    const body = chatBackend ? { input, chat_backend: chatBackend } : { input };
     const res = await fetch(WORKFLOW_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input }),
+      body: JSON.stringify(body),
     });
     return (await res.json()) as ActionResponse;
   } catch (err) {
