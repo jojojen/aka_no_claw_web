@@ -112,6 +112,7 @@ describe("App — workflow creation loop (web#8)", () => {
     expect(mockStream).toHaveBeenCalled();
     expect(mockWorkflowCommand).toHaveBeenCalledWith(
       "create 每天早上問候我，然後播放最愛音樂",
+      "cloud_pool",
     );
   });
 
@@ -128,6 +129,7 @@ describe("App — workflow creation loop (web#8)", () => {
     await waitFor(() => expect(mockWorkflowCommand).toHaveBeenCalled());
     expect(mockWorkflowCommand).toHaveBeenCalledWith(
       "create create a workflow that checks weather daily",
+      "cloud_pool",
     );
   });
 
@@ -166,7 +168,7 @@ describe("App — workflow creation loop (web#8)", () => {
     sendText("weather_today");
 
     await waitFor(() =>
-      expect(mockWorkflowCommand).toHaveBeenCalledWith("weather_today"),
+      expect(mockWorkflowCommand).toHaveBeenNthCalledWith(2, "weather_today", "cloud_pool"),
     );
   });
 
@@ -193,7 +195,7 @@ describe("App — workflow creation loop (web#8)", () => {
     // → next text goes to workflow endpoint.
     sendText("weather_today");
     await waitFor(() =>
-      expect(mockWorkflowCommand).toHaveBeenCalledWith("weather_today"),
+      expect(mockWorkflowCommand).toHaveBeenNthCalledWith(2, "weather_today", "cloud_pool"),
     );
   });
 

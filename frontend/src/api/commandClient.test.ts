@@ -17,6 +17,7 @@ import {
   runWorkflowCommand,
   saveChatSettings,
   saveSession,
+  streamCommand,
 } from "./commandClient";
 import { emptySnapshot } from "../session";
 import type { ChatSettings } from "../types/command";
@@ -30,6 +31,22 @@ function jsonResponse(body: unknown, ok = true, status = 200): Response {
     ok,
     status,
     json: async () => body,
+  } as unknown as Response;
+}
+
+function streamResponse(lines: unknown[]): Response {
+  const encoder = new TextEncoder();
+  return {
+    ok: true,
+    status: 200,
+    body: new ReadableStream({
+      start(controller) {
+        for (const line of lines) {
+          controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
+        }
+        controller.close();
+      },
+    }),
   } as unknown as Response;
 }
 
@@ -116,6 +133,52 @@ describe("clearSession", () => {
     });
     const res = await clearSession();
     expect(res.status).toBe("error");
+  });
+});
+
+describe("streamCommand", () => {
+  it("connects directly to the bridge port before falling back to the dev proxy", async () => {
+    const seenUrls: string[] = [];
+    mockFetch(async (url) => {
+      seenUrls.push(String(url));
+      return streamResponse([
+        { type: "delta", text: "步驟 1/2：/search 查詢中\n" },
+        { type: "done", message: "完成" },
+      ]);
+    });
+    const events: unknown[] = [];
+
+    await streamCommand(
+      { mode: "chat", input: "test", source: "aka_no_claw_web" },
+      (event) => events.push(event),
+      new AbortController().signal,
+    );
+
+    expect(seenUrls[0]).toContain(":8781/api/command/stream");
+    expect(events).toEqual([
+      { type: "delta", text: "步驟 1/2：/search 查詢中\n" },
+      { type: "done", message: "完成" },
+    ]);
+  });
+
+  it("falls back to the proxied stream endpoint when direct bridge streaming fails", async () => {
+    const seenUrls: string[] = [];
+    mockFetch(async (url) => {
+      seenUrls.push(String(url));
+      if (seenUrls.length === 1) throw new Error("direct unavailable");
+      return streamResponse([{ type: "done", message: "proxy ok" }]);
+    });
+    const events: unknown[] = [];
+
+    await streamCommand(
+      { mode: "chat", input: "test", source: "aka_no_claw_web" },
+      (event) => events.push(event),
+      new AbortController().signal,
+    );
+
+    expect(seenUrls[0]).toContain(":8781/api/command/stream");
+    expect(seenUrls[1]).toBe("/api/command/stream");
+    expect(events).toEqual([{ type: "done", message: "proxy ok" }]);
   });
 });
 
@@ -356,6 +419,19 @@ describe("runWorkflowCommand", () => {
     expect(JSON.parse(seenBody)).toEqual({ input: "create 每天早上問候我" });
     expect(res.status).toBe("ok");
     expect(res.message).toContain("草稿");
+  });
+
+  it("POSTs selected chat backend to /api/command/workflow when provided", async () => {
+    let seenBody = "";
+    mockFetch(async (_url, init) => {
+      seenBody = init?.body as string;
+      return jsonResponse({ status: "ok", message: "草稿已建立" });
+    });
+    await runWorkflowCommand("create 每天早上問候我", "gemini");
+    expect(JSON.parse(seenBody)).toEqual({
+      input: "create 每天早上問候我",
+      chat_backend: "gemini",
+    });
   });
 
   it("fails soft on network error", async () => {
