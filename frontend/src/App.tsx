@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
+  Attachment,
   ChatBackend,
   ChatSettings,
   ChatHistoryItem,
+  CommandAction,
   Message,
   ModelRoute,
   Mode,
   SessionSnapshot,
   Submode,
+  VisionRoute,
   WebCommandRequest,
 } from "./types/command";
 import {
@@ -113,6 +116,7 @@ export default function App() {
   const [mode, setMode] = useState<Mode>("chat");
   const [chatBackend, setChatBackend] = useState<ChatBackend>("cloud_pool");
   const [modelRoutes, setModelRoutes] = useState<ModelRoute[]>([]);
+  const [visionRoute, setVisionRoute] = useState<VisionRoute | null>(null);
   const [investmentSubmode, setInvestmentSubmode] =
     useState<Submode>("deep_product_research");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -131,6 +135,7 @@ export default function App() {
   const [scheduleActive, setScheduleActive] = useState(false);
   const scheduleMsgIdRef = useRef<string | null>(null);
   const [lifeCategory, setLifeCategory] = useState<LifeCategory>("music");
+  const [stagedFile, setStagedFile] = useState<{ file: File; previewUrl: string } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const stopPollRef = useRef<(() => void) | null>(null);
 
@@ -152,6 +157,7 @@ export default function App() {
     const res = await getModelRoutes();
     if (res.status === "ok") {
       setModelRoutes(res.routes);
+      setVisionRoute(res.vision ?? null);
     }
   }, []);
 
@@ -238,6 +244,7 @@ export default function App() {
       if (!alive) return;
       if (routesRes.status === "ok") {
         setModelRoutes(routesRes.routes);
+        setVisionRoute(routesRes.vision ?? null);
       }
       if (settingsRes.status === "ok" && settingsRes.settings) {
         setChatSettings(settingsRes.settings);
@@ -291,14 +298,14 @@ export default function App() {
   }, []);
 
   const buildRequest = useCallback(
-    (text: string, history: ChatHistoryItem[] = []): WebCommandRequest => {
+    (text: string, history: ChatHistoryItem[] = [], extraAttachments?: Attachment[]): WebCommandRequest => {
       if (mode === "chat") {
         return {
           mode: "chat",
           submode: null,
           input: text,
           chat_backend: chatBackend,
-          attachments: [],
+          attachments: extraAttachments || [],
           source: SOURCE,
           history,
           session_id: getOrCreateSessionId(),
@@ -311,7 +318,7 @@ export default function App() {
           submode: "text_translation",
           input: text,
           chat_backend: chatBackend,
-          attachments: [],
+          attachments: extraAttachments || [],
           source: SOURCE,
         };
       }
@@ -319,7 +326,7 @@ export default function App() {
         mode: "investment",
         submode: investmentSubmode,
         input: text,
-        attachments: [],
+        attachments: extraAttachments || [],
         source: SOURCE,
       };
     },
@@ -378,6 +385,7 @@ export default function App() {
                 text: event.message || acc,
                 status: "ok",
                 modelMetadata: event.model_metadata,
+                chatActions: event.actions,
                 generating: false,
               });
             } else if (event.type === "error") {
@@ -774,7 +782,7 @@ export default function App() {
   }, [generating, runScheduleCard]);
 
   const onSend = useCallback(
-    (text: string) => {
+    async (text: string) => {
       if (generating) return;
       const lifeRoutesToChat = mode === "life" && lifeCategory !== "music";
       const chatLikeMode = mode === "chat" || lifeRoutesToChat;
@@ -829,13 +837,28 @@ export default function App() {
       }
 
       const history = chatLikeMode ? buildChatHistory(messages) : [];
+      let chatAttachments: Attachment[] | undefined;
+      if (chatLikeMode && stagedFile) {
+        const sf = stagedFile;
+        URL.revokeObjectURL(sf.previewUrl);
+        setStagedFile(null);
+        try {
+          const dataBase64 = await fileToBase64(sf.file);
+          chatAttachments = [{
+            type: "image",
+            filename: sf.file.name,
+            content_type: sf.file.type,
+            data_base64: dataBase64,
+          }];
+        } catch { /* skip attachment on error */ }
+      }
       const req = chatLikeMode
         ? {
             mode: "chat" as const,
             submode: null,
             input: text,
             chat_backend: chatBackend,
-            attachments: [],
+            attachments: chatAttachments || [],
             source: SOURCE,
             history,
             session_id: getOrCreateSessionId(),
@@ -865,7 +888,41 @@ export default function App() {
         void runBlocking(req, assistantId, label);
       }
     },
-    [generating, mode, lifeCategory, chatBackend, investmentSubmode, workflowActive, scheduleActive, messages, buildRequest, patch, runStreaming, runPolling, runBlocking, runLifeCard, runWorkflowCard, runScheduleCard],
+    [generating, mode, lifeCategory, chatBackend, investmentSubmode, workflowActive, scheduleActive, messages, buildRequest, stagedFile, patch, runStreaming, runPolling, runBlocking, runLifeCard, runWorkflowCard, runScheduleCard],
+  );
+
+  // Goal-loop control buttons (continue/stop/save) arrive as CommandAction on a
+  // "done" stream event, not scoped to a jobId -- clicking one resends
+  // action.input as the next chat turn while showing action.label as what the
+  // user "said", mirroring onSend's chatLikeMode branch.
+  const onChatAction = useCallback(
+    (action: CommandAction) => {
+      if (generating) return;
+      const userMsg: Message = { id: uid(), role: "user", text: action.label, modeLabel: MODE_LABELS.chat };
+      const assistantId = uid();
+      const assistantMsg: Message = {
+        id: assistantId,
+        role: "assistant",
+        text: "",
+        modeLabel: MODE_LABELS.chat,
+        generating: true,
+      };
+      setMessages((prev) => [...prev, userMsg, assistantMsg]);
+      const history = buildChatHistory(messages);
+      const req: WebCommandRequest = {
+        mode: "chat",
+        submode: null,
+        input: action.input ?? action.label,
+        chat_backend: chatBackend,
+        attachments: [],
+        source: SOURCE,
+        history,
+        session_id: getOrCreateSessionId(),
+        conversation_id: CONVERSATION_ID,
+      };
+      void runStreaming(req, assistantId);
+    },
+    [generating, messages, chatBackend, runStreaming],
   );
 
   const onChatBackendChange = useCallback(
@@ -877,11 +934,14 @@ export default function App() {
         return;
       }
       const configured = route.configured ? "" : "（尚未設定 API key，可能退回本地模型）";
+      const vision = visionRoute
+        ? `｜視覺池：${visionRoute.requested_provider}/${visionRoute.requested_model}`
+        : "";
       setNotice(
-        `已切換到 ${route.label}：${route.requested_model}${configured}`,
+        `已切換到 ${route.label}：${route.requested_model}${configured}${vision}`,
       );
     },
-    [modelRoutes],
+    [modelRoutes, visionRoute],
   );
 
   const onSaveModelSettings = useCallback(
@@ -908,7 +968,13 @@ export default function App() {
 
   const onSelectImage = useCallback(
     (file: File) => {
-      if (generating || mode !== "translation") return;
+      if (generating) return;
+      if (mode === "chat") {
+        const previewUrl = URL.createObjectURL(file);
+        setStagedFile({ file, previewUrl });
+        return;
+      }
+      if (mode !== "translation") return;
       const userMsg: Message = { id: uid(), role: "user", text: `🖼 ${file.name}` };
       const assistantId = uid();
       setMessages((prev) => [
@@ -1024,6 +1090,12 @@ export default function App() {
           ]);
           patch(messageId, { generating: false });
           await runWorkflowResultCard(runId, () => runWorkflowCommand(`run ${wfId}`));
+          return;
+        }
+        if (callbackData.startsWith("wf:rename:")) {
+          const wfId = callbackData.slice("wf:rename:".length);
+          workflowMsgIdRef.current = messageId;
+          await runWorkflowCard(messageId, () => runWorkflowCommand(`rename ${wfId}`));
           return;
         }
         if (callbackData.startsWith("wf:delete:")) {
@@ -1208,8 +1280,33 @@ export default function App() {
         </div>
       )}
 
-      <ConversationStream messages={messages} onAction={onAction} />
+      <ConversationStream
+        messages={messages}
+        onAction={onAction}
+        onChatAction={onChatAction}
+        chatActionsDisabled={generating}
+      />
 
+      {stagedFile && mode === "chat" && (
+        <div className="flex items-center gap-2 border-t border-muted bg-surface px-3 py-2">
+          <img
+            src={stagedFile.previewUrl}
+            alt="preview"
+            className="h-10 w-10 rounded object-cover"
+          />
+          <span className="flex-1 truncate text-xs text-text/70">{stagedFile.file.name}</span>
+          <button
+            type="button"
+            onClick={() => {
+              URL.revokeObjectURL(stagedFile.previewUrl);
+              setStagedFile(null);
+            }}
+            className="rounded bg-muted px-2 py-1 text-xs text-text hover:bg-mutedHover"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <InputBar
         placeholder={placeholder}
         mode={mode}

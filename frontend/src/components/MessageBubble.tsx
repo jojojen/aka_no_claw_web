@@ -1,4 +1,4 @@
-import type { ActionButton, Message } from "../types/command";
+import type { ActionButton, CommandAction, Message } from "../types/command";
 import { FlatActionButton } from "./FlatActionButton";
 
 function groupByRow(actions: ActionButton[]): ActionButton[][] {
@@ -26,9 +26,11 @@ function modelMetaText(message: Message): string | null {
 type Props = {
   message: Message;
   onAction: (messageId: string, jobId: string, callbackData: string) => void;
+  onChatAction?: (action: CommandAction) => void;
+  chatActionsDisabled?: boolean;
 };
 
-export function MessageBubble({ message, onAction }: Props) {
+export function MessageBubble({ message, onAction, onChatAction, chatActionsDisabled }: Props) {
   const isUser = message.role === "user";
   const base = "max-w-[85%] whitespace-pre-wrap break-words rounded px-3 py-2 text-sm leading-relaxed";
   const tone = isUser
@@ -37,6 +39,8 @@ export function MessageBubble({ message, onAction }: Props) {
 
   const actions = message.actions ?? [];
   const canAction = !!message.jobId && !message.generating;
+  const chatActions = message.chatActions ?? [];
+  const canChatAction = !message.generating && !chatActionsDisabled;
   const metaText = modelMetaText(message);
 
   return (
@@ -70,6 +74,20 @@ export function MessageBubble({ message, onAction }: Props) {
                 </FlatActionButton>
               ))}
             </div>
+          ))}
+        </div>
+      )}
+      {chatActions.length > 0 && (
+        <div className="mt-2 flex max-w-[85%] flex-wrap gap-2 self-start">
+          {chatActions.map((a, i) => (
+            <FlatActionButton
+              key={`${a.command}-${a.input ?? i}`}
+              variant="muted"
+              disabled={!canChatAction}
+              onClick={() => onChatAction?.(a)}
+            >
+              {a.label}
+            </FlatActionButton>
           ))}
         </div>
       )}

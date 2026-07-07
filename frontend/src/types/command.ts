@@ -3,8 +3,8 @@
 // bridge as an external local API and never reimplements routing.
 
 export type Mode = "chat" | "translation" | "investment" | "life";
-export type ChatBackend = "local" | "cloud_mistral" | "gemini" | "cloud_pickle" | "cloud_pool";
-export type LlmProvider = "gemini" | "mistral" | "big_pickle" | "local";
+export type ChatBackend = "local" | "cloud_mistral" | "gemini" | "cloud_pickle" | "cloud_nvidia" | "cloud_pool";
+export type LlmProvider = "gemini" | "mistral" | "big_pickle" | "local" | "nvidia";
 
 export type Submode =
   | "text_translation"
@@ -84,9 +84,17 @@ export type ModelRoute = {
   configured: boolean;
 };
 
+export type VisionRoute = {
+  label: string;
+  requested_provider: string;
+  requested_model: string;
+  chain: { provider: string; model: string }[];
+};
+
 export type ModelRoutesResponse = {
   status: ResponseStatus;
   routes: ModelRoute[];
+  vision?: VisionRoute | null;
   message?: string;
 };
 
@@ -103,6 +111,9 @@ export type ChatSettings = {
   default_provider_options: { value: ChatBackend; label: string }[];
   providers: Record<LlmProvider, ChatSettingsProvider>;
   model_options: Record<LlmProvider, string[]>;
+  vision_pool: LlmProvider[];
+  vision_providers: Partial<Record<LlmProvider, ChatSettingsProvider>>;
+  vision_model_options: Partial<Record<LlmProvider, string[]>>;
 };
 
 export type ChatSettingsResponse = {
@@ -133,7 +144,7 @@ export type StreamEvent =
   | { type: "start"; request_id: string }
   | { type: "delta"; text: string }
   | { type: "heartbeat" }
-  | { type: "done"; message: string; model_metadata?: ModelMetadata }
+  | { type: "done"; message: string; model_metadata?: ModelMetadata; actions?: CommandAction[] }
   | { type: "error"; message: string }
   | { type: "redirect"; intent: string; description: string; workflow_id?: string };
 
@@ -220,4 +231,8 @@ export type Message = {
   actions?: ActionButton[];
   jobId?: string;
   modelMetadata?: ModelMetadata;
+  // Goal-loop control buttons (continue/stop/save) delivered on stream "done".
+  // Not scoped to a jobId like ActionButton -- dispatch resends action.input
+  // as the next chat turn instead of hitting the job-action endpoint.
+  chatActions?: CommandAction[];
 };

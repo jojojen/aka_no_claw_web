@@ -47,6 +47,23 @@ export function ChatSettingsModal({ open, settings, saving = false, onClose, onS
     } : prev));
   };
 
+  const updateVisionProvider = (provider: LlmProvider, patch: Partial<ChatSettings["vision_providers"][LlmProvider]>) => {
+    setDraft((prev) => prev ? {
+      ...prev,
+      vision_providers: {
+        ...prev.vision_providers,
+        [provider]: { ...(prev.vision_providers[provider] || prev.providers[provider]), ...patch },
+      },
+    } : prev);
+  };
+
+  const reorderVisionPool = (index: number, dir: -1 | 1) => {
+    setDraft((prev) => (prev ? {
+      ...prev,
+      vision_pool: moveItem(prev.vision_pool, index, index + dir),
+    } : prev));
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 px-3 py-4 sm:items-center">
       <div className="w-full max-w-xl rounded border border-muted bg-surface shadow-xl">
@@ -120,7 +137,7 @@ export function ChatSettingsModal({ open, settings, saving = false, onClose, onS
             </div>
           </section>
 
-          {(["gemini", "mistral", "big_pickle", "local"] as LlmProvider[]).map((provider) => (
+          {(["gemini", "mistral", "big_pickle", "nvidia", "local"] as LlmProvider[]).map((provider) => (
             <section key={provider} className="space-y-3 rounded border border-muted px-3 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -160,6 +177,86 @@ export function ChatSettingsModal({ open, settings, saving = false, onClose, onS
               </div>
             </section>
           ))}
+
+          <section className="space-y-2">
+            <h3 className="text-xs font-semibold text-text/70">多模態池順序</h3>
+            <p className="text-xs text-text/50">上傳圖片時使用的視覺模型池</p>
+            <div className="space-y-2">
+              {draft.vision_pool.map((provider, index) => (
+                <div
+                  key={provider}
+                  className="flex items-center justify-between rounded border border-muted px-3 py-2"
+                >
+                  <div className="text-sm text-text">
+                    {(draft.vision_providers[provider] || draft.providers[provider]).label}
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      disabled={saving || index === 0}
+                      onClick={() => reorderVisionPool(index, -1)}
+                      className="rounded bg-muted px-2 py-1 text-xs text-text hover:bg-mutedHover disabled:opacity-40"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving || index === draft.vision_pool.length - 1}
+                      onClick={() => reorderVisionPool(index, 1)}
+                      className="rounded bg-muted px-2 py-1 text-xs text-text hover:bg-mutedHover disabled:opacity-40"
+                    >
+                      ↓
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {(["gemini", "mistral", "big_pickle", "nvidia", "local"] as LlmProvider[]).map((provider) => {
+            const vp = draft.vision_providers[provider];
+            if (!vp) return null;
+            return (
+              <section key={`vision-${provider}`} className="space-y-3 rounded border border-muted px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-text">{vp.label}（多模態）</h3>
+                    {!vp.configured && (
+                      <p className="text-xs text-amber-700">未設 API key 或目前不可用</p>
+                    )}
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-text/70">
+                    <input
+                      type="checkbox"
+                      disabled={saving}
+                      checked={vp.enabled}
+                      onChange={(e) => updateVisionProvider(provider, { enabled: e.target.checked })}
+                      className="mint-choice size-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    啟用
+                  </label>
+                </div>
+                <div className="grid gap-2">
+                  {(draft.vision_model_options[provider] || []).map((model) => (
+                    <label
+                      key={model}
+                      className="flex items-center gap-2 rounded border border-muted px-3 py-2 text-sm"
+                    >
+                      <input
+                        type="radio"
+                        disabled={saving}
+                        name={`vision-model-${provider}`}
+                        checked={vp.model === model}
+                        onChange={() => updateVisionProvider(provider, { model })}
+                        className="mint-choice size-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
+                      />
+                      <span>{model}</span>
+                    </label>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-muted px-4 py-3">

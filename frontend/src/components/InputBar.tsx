@@ -51,7 +51,7 @@ export function InputBar({
 
   return (
     <div className="flex items-end gap-2 border-t border-muted bg-surface p-3">
-      {mode === "translation" && (
+      {(mode === "translation" || mode === "chat") && (
         <AttachmentButton onSelect={onSelectImage} disabled={generating} />
       )}
       <textarea

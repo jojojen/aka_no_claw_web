@@ -1,14 +1,16 @@
 import { useEffect, useRef } from "react";
-import type { Message } from "../types/command";
+import type { CommandAction, Message } from "../types/command";
 import { MessageBubble } from "./MessageBubble";
 import { ErrorMessage } from "./ErrorMessage";
 
 type Props = {
   messages: Message[];
   onAction: (messageId: string, jobId: string, callbackData: string) => void;
+  onChatAction: (action: CommandAction) => void;
+  chatActionsDisabled?: boolean;
 };
 
-export function ConversationStream({ messages, onAction }: Props) {
+export function ConversationStream({ messages, onAction, onChatAction, chatActionsDisabled }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -24,7 +26,13 @@ export function ConversationStream({ messages, onAction }: Props) {
         m.role === "assistant" && m.status === "error" ? (
           <ErrorMessage key={m.id} text={m.text} />
         ) : (
-          <MessageBubble key={m.id} message={m} onAction={onAction} />
+          <MessageBubble
+            key={m.id}
+            message={m}
+            onAction={onAction}
+            onChatAction={onChatAction}
+            chatActionsDisabled={chatActionsDisabled}
+          />
         ),
       )}
       <div ref={endRef} />

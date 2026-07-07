@@ -602,13 +602,30 @@ describe("saveChatSettings", () => {
         gemini: { label: "Gemini", enabled: true, model: "gemini-2.5-pro", configured: true },
         mistral: { label: "Mistral", enabled: true, model: "mistral-large-latest", configured: true },
         big_pickle: { label: "OpenCode", enabled: true, model: "big-pickle", configured: true },
+        nvidia: { label: "NVIDIA", enabled: true, model: "meta/llama-3.1-70b-instruct", configured: true },
         local: { label: "本地", enabled: true, model: "qwen3:14b", configured: true },
       },
       model_options: {
         gemini: ["gemini-2.5-pro"],
         mistral: ["mistral-large-latest"],
         big_pickle: ["big-pickle", "deepseek-v4-flash-free"],
+        nvidia: ["meta/llama-3.1-70b-instruct"],
         local: ["qwen3:14b"],
+      },
+      vision_pool: ["gemini", "mistral", "nvidia", "local"],
+      vision_providers: {
+        gemini: { label: "Gemini", enabled: true, model: "gemini-2.5-flash", configured: true },
+        mistral: { label: "Mistral", enabled: true, model: "pixtral-12b-latest", configured: true },
+        big_pickle: { label: "OpenCode", enabled: false, model: "big-pickle", configured: true },
+        nvidia: { label: "NVIDIA", enabled: true, model: "meta/llama-3.2-11b-vision-instruct", configured: true },
+        local: { label: "本地", enabled: true, model: "qwen2.5vl:7b", configured: true },
+      },
+      vision_model_options: {
+        gemini: ["gemini-2.5-flash"],
+        mistral: ["pixtral-12b-latest"],
+        big_pickle: ["big-pickle", "mimo-v2.5-free"],
+        nvidia: ["meta/llama-3.2-11b-vision-instruct", "meta/llama-3.2-90b-vision-instruct"],
+        local: ["qwen2.5vl:7b"],
       },
     };
 

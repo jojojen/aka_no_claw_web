@@ -62,13 +62,38 @@ const SETTINGS: ChatSettings = {
     gemini: { label: "Gemini", enabled: true, model: "gemini-3.5-flash", configured: true },
     mistral: { label: "Mistral", enabled: true, model: "mistral-large-latest", configured: false },
     big_pickle: { label: "OpenCode", enabled: true, model: "big-pickle", configured: true },
+    nvidia: { label: "NVIDIA", enabled: true, model: "meta/llama-3.1-70b-instruct", configured: true },
     local: { label: "本地", enabled: true, model: "qwen3:4b", configured: true },
   },
   model_options: {
     gemini: ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-pro", "gemini-2.5-flash"],
     mistral: ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"],
     big_pickle: ["big-pickle", "deepseek-v4-flash-free", "mimo-v2.5-free"],
+    nvidia: [
+      "meta/llama-3.1-70b-instruct",
+      "meta/llama-3.3-70b-instruct",
+      "meta/llama-3.1-8b-instruct",
+      "meta/llama-4-maverick-17b-128e-instruct",
+      "mistralai/mistral-nemotron",
+      "qwen/qwen3-next-80b-a3b-instruct",
+      "deepseek-ai/deepseek-v4-flash",
+    ],
     local: ["qwen3:4b", "qwen3:14b"],
+  },
+  vision_pool: ["gemini", "mistral", "nvidia", "local"],
+  vision_providers: {
+    gemini: { label: "Gemini", enabled: true, model: "gemini-2.5-flash", configured: true },
+    mistral: { label: "Mistral", enabled: true, model: "pixtral-12b-latest", configured: false },
+    big_pickle: { label: "OpenCode", enabled: false, model: "big-pickle", configured: true },
+    nvidia: { label: "NVIDIA", enabled: true, model: "meta/llama-3.2-11b-vision-instruct", configured: true },
+    local: { label: "本地", enabled: true, model: "qwen2.5vl:7b", configured: true },
+  },
+  vision_model_options: {
+    gemini: ["gemini-2.5-flash", "gemini-2.5-pro"],
+    mistral: ["pixtral-12b-latest", "pixtral-large-2503"],
+    big_pickle: ["big-pickle", "mimo-v2.5-free"],
+    nvidia: ["meta/llama-3.2-11b-vision-instruct", "meta/llama-3.2-90b-vision-instruct"],
+    local: ["qwen2.5vl:7b", "qwen2.5vl"],
   },
 };
 

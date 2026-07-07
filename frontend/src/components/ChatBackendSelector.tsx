@@ -5,6 +5,7 @@ const BACKENDS: { value: ChatBackend; label: string }[] = [
   { value: "cloud_mistral", label: "Mistral" },
   { value: "gemini", label: "Gemini" },
   { value: "cloud_pickle", label: "OpenCode" },
+  { value: "cloud_nvidia", label: "NVIDIA" },
   { value: "local", label: "本地" },
 ];
 
@@ -18,7 +19,7 @@ export function ChatBackendSelector({ backend, onChange, disabled }: Props) {
   return (
     <div className="flex items-center gap-2 text-xs">
       <span className="shrink-0 whitespace-nowrap text-text/60">模型</span>
-      <div className="grid min-w-0 flex-1 grid-cols-5 gap-1">
+      <div className="grid min-w-0 flex-1 grid-cols-6 gap-1">
         {BACKENDS.map((b) => {
           const active = b.value === backend;
           return (

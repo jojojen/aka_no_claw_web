@@ -79,7 +79,7 @@ export function buildChatHistory(
 }
 
 const MODES: readonly Mode[] = ["chat", "translation", "investment", "life"];
-const BACKENDS: readonly ChatBackend[] = ["cloud_pool", "local", "cloud_mistral", "gemini", "cloud_pickle"];
+const BACKENDS: readonly ChatBackend[] = ["cloud_pool", "local", "cloud_mistral", "gemini", "cloud_pickle", "cloud_nvidia"];
 const SUBMODES: readonly Submode[] = [
   "text_translation",
   "image_translation",
