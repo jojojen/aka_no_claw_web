@@ -758,6 +758,50 @@ export default function App() {
     );
   }, [generating, runLifeCard]);
 
+  // 家電 button: electric fan power toggle IR shortcut.
+  const onFanPower = useCallback(() => {
+    if (generating) return;
+    const assistantId = uid();
+    setMessages((prev) => [
+      ...prev,
+      { id: assistantId, role: "assistant", text: "", modeLabel: MODE_LABELS.life, generating: true },
+    ]);
+    void runLifeCard(
+      assistantId,
+      () => runIrCommand("/ir send fan power"),
+      APPLIANCE_JOB_ID,
+    );
+  }, [generating, runLifeCard]);
+
+  // 家電 button: electric fan weaker/stronger IR shortcuts.
+  const onFanWeaker = useCallback(() => {
+    if (generating) return;
+    const assistantId = uid();
+    setMessages((prev) => [
+      ...prev,
+      { id: assistantId, role: "assistant", text: "", modeLabel: MODE_LABELS.life, generating: true },
+    ]);
+    void runLifeCard(
+      assistantId,
+      () => runIrCommand("/ir send fan weaker"),
+      APPLIANCE_JOB_ID,
+    );
+  }, [generating, runLifeCard]);
+
+  const onFanStronger = useCallback(() => {
+    if (generating) return;
+    const assistantId = uid();
+    setMessages((prev) => [
+      ...prev,
+      { id: assistantId, role: "assistant", text: "", modeLabel: MODE_LABELS.life, generating: true },
+    ]);
+    void runLifeCard(
+      assistantId,
+      () => runIrCommand("/ir send fan stronger"),
+      APPLIANCE_JOB_ID,
+    );
+  }, [generating, runLifeCard]);
+
   // 工作流 list button: shows all saved workflows; each card has "排程執行" buttons
   // (add_for_wf callbacks) dispatched via onAction → runScheduleCard.
   const onWorkflowList = useCallback(() => {
@@ -1273,6 +1317,9 @@ export default function App() {
             onMusicAction={onMusicPanel}
             onBluetoothScan={onBluetoothScan}
             onAppliancePower={onAppliancePower}
+            onFanPower={onFanPower}
+            onFanWeaker={onFanWeaker}
+            onFanStronger={onFanStronger}
             onWorkflowList={onWorkflowList}
             onScheduleList={onScheduleList}
             onCategoryChange={setLifeCategory}

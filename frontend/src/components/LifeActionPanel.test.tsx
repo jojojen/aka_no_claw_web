@@ -14,6 +14,9 @@ function renderPanel(overrides: Partial<{
   onMusicAction: (cb: string) => void;
   onBluetoothScan: () => void;
   onAppliancePower: () => void;
+  onFanPower: () => void;
+  onFanWeaker: () => void;
+  onFanStronger: () => void;
   onWorkflowList: () => void;
   onScheduleList: () => void;
   onCategoryChange: (category: "music" | "bluetooth" | "appliance" | "workflow" | "schedule") => void;
@@ -29,6 +32,9 @@ function renderPanel(overrides: Partial<{
         onMusicAction={overrides.onMusicAction ?? vi.fn()}
         onBluetoothScan={overrides.onBluetoothScan ?? vi.fn()}
         onAppliancePower={overrides.onAppliancePower ?? vi.fn()}
+        onFanPower={overrides.onFanPower ?? vi.fn()}
+        onFanWeaker={overrides.onFanWeaker ?? vi.fn()}
+        onFanStronger={overrides.onFanStronger ?? vi.fn()}
         onWorkflowList={overrides.onWorkflowList ?? vi.fn()}
         onScheduleList={overrides.onScheduleList ?? vi.fn()}
         onCategoryChange={(next) => {
@@ -179,5 +185,45 @@ describe("LifeActionPanel — appliance IR sub-panel", () => {
     fireEvent.click(screen.getByText("🏠 家電"));
     const power = screen.getByText(/燈（開關）/).closest("button");
     expect((power as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("fires onFanPower when 電扇（開關） is clicked", () => {
+    const onFanPower = vi.fn();
+    renderPanel({ onFanPower });
+    fireEvent.click(screen.getByText("🏠 家電"));
+    fireEvent.click(screen.getByText(/電扇（開關）/));
+    expect(onFanPower).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the fan button when disabled=true", () => {
+    renderPanel({ disabled: true });
+    fireEvent.click(screen.getByText("🏠 家電"));
+    const power = screen.getByText(/電扇（開關）/).closest("button");
+    expect((power as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("fires onFanWeaker when 電扇（弱） is clicked", () => {
+    const onFanWeaker = vi.fn();
+    renderPanel({ onFanWeaker });
+    fireEvent.click(screen.getByText("🏠 家電"));
+    fireEvent.click(screen.getByText(/電扇（弱）/));
+    expect(onFanWeaker).toHaveBeenCalledTimes(1);
+  });
+
+  it("fires onFanStronger when 電扇（強） is clicked", () => {
+    const onFanStronger = vi.fn();
+    renderPanel({ onFanStronger });
+    fireEvent.click(screen.getByText("🏠 家電"));
+    fireEvent.click(screen.getByText(/電扇（強）/));
+    expect(onFanStronger).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the fan weaker/stronger buttons when disabled=true", () => {
+    renderPanel({ disabled: true });
+    fireEvent.click(screen.getByText("🏠 家電"));
+    const weaker = screen.getByText(/電扇（弱）/).closest("button");
+    const stronger = screen.getByText(/電扇（強）/).closest("button");
+    expect((weaker as HTMLButtonElement).disabled).toBe(true);
+    expect((stronger as HTMLButtonElement).disabled).toBe(true);
   });
 });

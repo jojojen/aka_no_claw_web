@@ -38,6 +38,9 @@ type Props = {
   onMusicAction: (callbackData: string) => void;
   onBluetoothScan: () => void;
   onAppliancePower: () => void;
+  onFanPower: () => void;
+  onFanWeaker: () => void;
+  onFanStronger: () => void;
   onWorkflowList: () => void;
   onScheduleList: () => void;
   category: LifeCategory;
@@ -49,6 +52,9 @@ export function LifeActionPanel({
   onMusicAction,
   onBluetoothScan,
   onAppliancePower,
+  onFanPower,
+  onFanWeaker,
+  onFanStronger,
   onWorkflowList,
   onScheduleList,
   category,
@@ -104,7 +110,13 @@ export function LifeActionPanel({
         <BluetoothControls disabled={disabled} onScan={onBluetoothScan} />
       )}
       {category === "appliance" && (
-        <ApplianceControls disabled={disabled} onPower={onAppliancePower} />
+        <ApplianceControls
+          disabled={disabled}
+          onLightPower={onAppliancePower}
+          onFanPower={onFanPower}
+          onFanWeaker={onFanWeaker}
+          onFanStronger={onFanStronger}
+        />
       )}
       {category === "workflow" && (
         <WorkflowControls disabled={disabled} onList={onWorkflowList} />
@@ -191,20 +203,40 @@ function BluetoothControls({
   );
 }
 
-// 家電 currently exposes the first IR shortcut only. The command itself is owned
-// by OpenClaw (`/ir send ceiling_light power`); this button is just a remote.
+// 家電 exposes IR shortcuts as a remote. Each command is owned by OpenClaw
+// (`/ir send ceiling_light power`, `/ir send fan power`,
+// `/ir send fan weaker`/`stronger`); these buttons just relay.
 function ApplianceControls({
   disabled,
-  onPower,
+  onLightPower,
+  onFanPower,
+  onFanWeaker,
+  onFanStronger,
 }: {
   disabled: boolean;
-  onPower: () => void;
+  onLightPower: () => void;
+  onFanPower: () => void;
+  onFanWeaker: () => void;
+  onFanStronger: () => void;
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <FlatActionButton variant="muted" disabled={disabled} onClick={onPower}>
-        💡 燈（開關）
-      </FlatActionButton>
+      <div className="grid grid-cols-2 gap-2">
+        <FlatActionButton variant="muted" disabled={disabled} onClick={onLightPower}>
+          💡 燈（開關）
+        </FlatActionButton>
+        <FlatActionButton variant="muted" disabled={disabled} onClick={onFanPower}>
+          🌀 電扇（開關）
+        </FlatActionButton>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <FlatActionButton variant="muted" disabled={disabled} onClick={onFanWeaker}>
+          🌀 電扇（弱）
+        </FlatActionButton>
+        <FlatActionButton variant="muted" disabled={disabled} onClick={onFanStronger}>
+          🌀 電扇（強）
+        </FlatActionButton>
+      </div>
     </div>
   );
 }
