@@ -139,6 +139,15 @@ export type CommandResponse = {
   model_metadata?: ModelMetadata;
 };
 
+// Speech-to-text bridge response. The request sends the MediaRecorder/native
+// capture Blob as multipart FormData; the local bridge owns model loading and
+// transcription so no audio leaves the operator's machine.
+export type TranscriptionResponse = {
+  status: "ok" | "error";
+  transcript?: string;
+  message?: string;
+};
+
 // Streaming events from POST /api/command/stream (NDJSON).
 export type StreamEvent =
   | { type: "start"; request_id: string }

@@ -18,6 +18,7 @@ import {
   saveChatSettings,
   saveSession,
   streamCommand,
+  transcribeAudio,
 } from "./commandClient";
 import { emptySnapshot } from "../session";
 import type { ChatSettings } from "../types/command";
@@ -112,6 +113,38 @@ describe("saveSession", () => {
     const res = await saveSession(emptySnapshot());
     expect(res.status).toBe("error");
     expect(res.message).toContain("boom");
+  });
+});
+
+describe("transcribeAudio", () => {
+  it("POSTs the audio Blob as multipart FormData without setting Content-Type", async () => {
+    const seen: { url?: string; init?: RequestInit } = {};
+    mockFetch(async (url, init) => {
+      seen.url = url;
+      seen.init = init;
+      return jsonResponse({ status: "ok", transcript: "明天下午提醒我" });
+    });
+
+    const audio = new Blob(["voice"], { type: "audio/webm;codecs=opus" });
+    const res = await transcribeAudio(audio);
+
+    expect(seen.url).toBe("/api/command/transcribe");
+    expect(seen.init?.method).toBe("POST");
+    expect(seen.init?.headers).toBeUndefined();
+    expect(seen.init?.body).toBeInstanceOf(FormData);
+    const file = (seen.init?.body as FormData).get("file") as File;
+    expect(file.name).toBe("recording.webm");
+    expect(file.type).toBe("audio/webm;codecs=opus");
+    expect(res).toEqual({ status: "ok", transcript: "明天下午提醒我" });
+  });
+
+  it("fails soft when transcription cannot reach the bridge", async () => {
+    mockFetch(async () => { throw new Error("offline"); });
+
+    const res = await transcribeAudio(new Blob(["voice"], { type: "audio/mp4" }));
+
+    expect(res.status).toBe("error");
+    expect(res.message).toContain("offline");
   });
 });
 

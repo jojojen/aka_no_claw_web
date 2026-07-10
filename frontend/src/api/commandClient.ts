@@ -12,6 +12,7 @@ import type {
   SessionSaveResponse,
   SessionSnapshot,
   StreamEvent,
+  TranscriptionResponse,
   WebCommandRequest,
 } from "../types/command";
 import { emptySnapshot } from "../session";
@@ -31,6 +32,7 @@ const SESSION_URL = "/api/command/session";
 const RESTART_ALL_URL = "/api/command/restartall";
 const MODEL_ROUTES_URL = "/api/command/model-routes";
 const CHAT_SETTINGS_URL = "/api/command/chat-settings";
+const TRANSCRIBE_URL = "/api/command/transcribe";
 
 function streamUrlCandidates(): string[] {
   if (typeof window === "undefined") return [STREAM_URL];
@@ -60,6 +62,49 @@ export async function sendCommand(req: WebCommandRequest): Promise<CommandRespon
     return { status: "error", message };
   }
   return (await res.json()) as CommandResponse;
+}
+
+// Local speech-to-text. Audio bytes are sent to the command bridge, which runs
+// the configured open-source transcription model and returns plain text.
+export async function transcribeAudio(
+  audio: Blob,
+): Promise<TranscriptionResponse> {
+  try {
+    const mimeType = audio.type.split(";", 1)[0].toLowerCase();
+    const extensions: Record<string, string> = {
+      "audio/aac": "aac",
+      "audio/flac": "flac",
+      "audio/m4a": "m4a",
+      "audio/mp4": "m4a",
+      "audio/mpeg": "mp3",
+      "audio/ogg": "ogg",
+      "audio/wav": "wav",
+      "audio/wave": "wav",
+      "audio/webm": "webm",
+      "audio/x-m4a": "m4a",
+      "audio/x-wav": "wav",
+    };
+    const extension = extensions[mimeType] ?? "audio";
+    const body = new FormData();
+    body.append("file", audio, `recording.${extension}`);
+    const res = await fetch(TRANSCRIBE_URL, {
+      method: "POST",
+      // Do not set Content-Type: fetch adds multipart/form-data plus boundary.
+      body,
+    });
+    let data: TranscriptionResponse;
+    try {
+      data = (await res.json()) as TranscriptionResponse;
+    } catch {
+      return { status: "error", message: `HTTP ${res.status}` };
+    }
+    if (!res.ok) {
+      return { status: "error", message: data.message || `HTTP ${res.status}` };
+    }
+    return data;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
 }
 
 // Streaming chat — consumes NDJSON over fetch ReadableStream. Cancellable via

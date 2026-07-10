@@ -36,6 +36,7 @@ import {
   startAsyncCommand,
   restartAll,
   streamCommand,
+  transcribeAudio,
 } from "./api/commandClient";
 import type { ActionResponse } from "./types/command";
 import {
@@ -941,6 +942,20 @@ export default function App() {
     [generating, mode, lifeCategory, chatBackend, investmentSubmode, workflowActive, scheduleActive, messages, buildRequest, stagedFile, patch, runStreaming, runPolling, runBlocking, runLifeCard, runWorkflowCard, runScheduleCard],
   );
 
+  const onTranscribe = useCallback(
+    async (audio: Blob) => {
+      const res = await transcribeAudio(audio);
+      const transcript = res.transcript?.trim();
+      if (res.status !== "ok" || !transcript) {
+        throw new Error(res.message || "語音轉文字失敗，請再試一次。");
+      }
+      // Deliberately enter through the same handler as typed input so active
+      // mode, workflow/schedule capture, history, and NLP routing stay intact.
+      await onSend(transcript);
+    },
+    [onSend],
+  );
+
   // Goal-loop control buttons (continue/stop/save) arrive as CommandAction on a
   // "done" stream event, not scoped to a jobId -- clicking one resends
   // action.input as the next chat turn while showing action.label as what the
@@ -1383,6 +1398,7 @@ export default function App() {
         onSend={onSend}
         onStop={onStop}
         onSelectImage={onSelectImage}
+        onTranscribe={onTranscribe}
       />
 
       <ChatSettingsModal

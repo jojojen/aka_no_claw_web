@@ -15,9 +15,23 @@ export function AttachmentButton({ onSelect, disabled }: Props) {
         type="button"
         disabled={disabled}
         onClick={() => inputRef.current?.click()}
-        className="rounded bg-muted px-3 py-2 text-sm text-text hover:bg-mutedHover disabled:opacity-50"
+        aria-label="選擇圖片"
+        title="選擇圖片"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-muted text-text hover:bg-mutedHover disabled:opacity-50"
       >
-        選擇圖片
+        <svg
+          data-icon="paperclip"
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="h-5 w-5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m9.5 12.5 5.6-5.6a3.2 3.2 0 0 1 4.5 4.5l-8.1 8.1a5 5 0 0 1-7.1-7.1l8-8a2.9 2.9 0 0 1 4.1 4.1l-8 8a1.5 1.5 0 0 1-2.1-2.1l7.5-7.5" />
+        </svg>
       </button>
       <input
         ref={inputRef}
