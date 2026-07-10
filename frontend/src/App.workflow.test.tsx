@@ -82,7 +82,7 @@ const CAPTURE_RESPONSE = {
 };
 
 function sendText(text: string) {
-  fireEvent.change(screen.getByPlaceholderText("輸入訊息..."), {
+  fireEvent.change(screen.getByRole("textbox"), {
     target: { value: text },
   });
   fireEvent.click(screen.getByText("送出"));

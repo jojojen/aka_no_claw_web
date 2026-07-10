@@ -52,6 +52,7 @@ import { InvestmentActionPanel } from "./components/InvestmentActionPanel";
 import { LifeActionPanel } from "./components/LifeActionPanel";
 import { ConversationStream } from "./components/ConversationStream";
 import { InputBar } from "./components/InputBar";
+import { CaptureModeChip } from "./components/CaptureModeChip";
 import { ChatSettingsModal } from "./components/ChatSettingsModal";
 import type { LifeCategory } from "./components/LifeActionPanel";
 
@@ -148,10 +149,11 @@ export default function App() {
     }, 800);
   }
 
-  const placeholder = useMemo(
-    () => placeholderFor(mode, investmentSubmode, lifeCategory),
-    [mode, investmentSubmode, lifeCategory],
-  );
+  const placeholder = useMemo(() => {
+    if (workflowActive) return "工作流編輯中——輸入內容會送到編輯器，按 ✕ 退出";
+    if (scheduleActive) return "排程編輯中——輸入內容會送到排程器，按 ✕ 退出";
+    return placeholderFor(mode, investmentSubmode, lifeCategory);
+  }, [workflowActive, scheduleActive, mode, investmentSubmode, lifeCategory]);
 
   const refreshModelRoutes = useCallback(async () => {
     const res = await getModelRoutes();
@@ -368,6 +370,7 @@ export default function App() {
       abortRef.current = controller;
       setGenerating(true);
       let acc = "";
+      let procAcc = "";
       // Mutable container instead of a `let` variable: TypeScript's CFA can't
       // track `let` assignments inside async callbacks through try/finally, so
       // it narrows the variable to `never` after the block. Reading off a `const`
@@ -377,7 +380,10 @@ export default function App() {
         await streamCommand(
           req,
           (event) => {
-            if (event.type === "delta") {
+            if (event.type === "process") {
+              procAcc += (procAcc ? "\n" : "") + event.text;
+              patch(assistantId, { processText: procAcc });
+            } else if (event.type === "delta") {
               acc += event.text;
               patch(assistantId, { text: acc });
             } else if (event.type === "done") {
@@ -1065,6 +1071,16 @@ export default function App() {
     stopPollRef.current?.();
   }, []);
 
+  const onExitWorkflow = useCallback(() => {
+    if (generating || !workflowMsgIdRef.current) return;
+    void runWorkflowCard(workflowMsgIdRef.current, () => runWorkflowAction("wfe:cancel"), true);
+  }, [generating, runWorkflowCard]);
+
+  const onExitSchedule = useCallback(() => {
+    if (generating || !scheduleMsgIdRef.current) return;
+    void runScheduleCard(scheduleMsgIdRef.current, () => runScheduleHomeAction("sh:cancel"), true);
+  }, [generating, runScheduleCard]);
+
   // Clear memory: DELETE the saved snapshot, then wipe the visible stream.
   // The conversation is only cleared AFTER a confirmed successful delete so
   // a backend failure doesn't silently desync runtime state from the server
@@ -1353,6 +1369,12 @@ export default function App() {
             ✕
           </button>
         </div>
+      )}
+      {workflowActive && (
+        <CaptureModeChip mode="workflow" onExit={onExitWorkflow} />
+      )}
+      {scheduleActive && (
+        <CaptureModeChip mode="schedule" onExit={onExitSchedule} />
       )}
       <InputBar
         placeholder={placeholder}

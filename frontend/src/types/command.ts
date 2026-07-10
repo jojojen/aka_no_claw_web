@@ -146,7 +146,8 @@ export type StreamEvent =
   | { type: "heartbeat" }
   | { type: "done"; message: string; model_metadata?: ModelMetadata; actions?: CommandAction[] }
   | { type: "error"; message: string }
-  | { type: "redirect"; intent: string; description: string; workflow_id?: string };
+  | { type: "redirect"; intent: string; description: string; workflow_id?: string }
+  | { type: "process"; text: string };
 
 // Async job model from POST /api/command/async + GET /api/command/poll.
 // Long commands (deep product research) run decoupled from the connection so a
@@ -235,4 +236,8 @@ export type Message = {
   // Not scoped to a jobId like ActionButton -- dispatch resends action.input
   // as the next chat turn instead of hitting the job-action endpoint.
   chatActions?: CommandAction[];
+  // Accumulated vision analysis narration from "process" stream events.
+  // Rendered as a collapsed disclosure above the answer body; excluded from
+  // the history payload sent to the bridge (must not enter model context).
+  processText?: string;
 };

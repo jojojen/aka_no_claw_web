@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ActionButton, CommandAction, Message } from "../types/command";
 import { FlatActionButton } from "./FlatActionButton";
 
@@ -42,11 +43,30 @@ export function MessageBubble({ message, onAction, onChatAction, chatActionsDisa
   const chatActions = message.chatActions ?? [];
   const canChatAction = !message.generating && !chatActionsDisabled;
   const metaText = modelMetaText(message);
+  const [processOpen, setProcessOpen] = useState(false);
 
   return (
     <div className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
       {message.modeLabel && !isUser && (
         <span className="mb-1 text-[11px] text-text/50">{message.modeLabel}</span>
+      )}
+      {!isUser && message.processText && (
+        <div className="mb-1 max-w-[85%] self-start">
+          <button
+            type="button"
+            onClick={() => setProcessOpen((o) => !o)}
+            className="flex items-center gap-1 rounded border border-muted bg-muted/40 px-2 py-0.5 text-[11px] text-text/60 hover:bg-mutedHover"
+            aria-expanded={processOpen}
+          >
+            <span>{processOpen ? "▾" : "▸"}</span>
+            <span>🔍 分析過程</span>
+          </button>
+          {processOpen && (
+            <div className="mt-1 whitespace-pre-wrap break-words rounded border border-muted bg-muted/20 px-2 py-1.5 text-[11px] leading-relaxed text-text/55">
+              {message.processText}
+            </div>
+          )}
+        </div>
       )}
       <div className={`${base} ${tone}`}>
         {message.text}

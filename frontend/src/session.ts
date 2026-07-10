@@ -172,6 +172,9 @@ function sanitizeMessage(raw: unknown): Message | null {
     );
     if (actions.length) msg.actions = actions;
   }
+  if (typeof m.processText === "string" && m.processText) {
+    msg.processText = m.processText;
+  }
   return msg;
 }
 
