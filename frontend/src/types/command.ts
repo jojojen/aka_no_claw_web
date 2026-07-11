@@ -154,7 +154,15 @@ export type StreamEvent =
   | { type: "delta"; text: string }
   | { type: "heartbeat" }
   | { type: "done"; message: string; model_metadata?: ModelMetadata; actions?: CommandAction[] }
-  | { type: "error"; message: string }
+  | {
+      type: "error";
+      message: string;
+      /**
+       * Transport-level failure class.  A corrupt or incompatible NDJSON
+       * stream must not be mistaken for an empty/successful response.
+       */
+      failure_state?: "corrupt" | "incompatible";
+    }
   | { type: "redirect"; intent: string; description: string; workflow_id?: string }
   | { type: "process"; text: string };
 

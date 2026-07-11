@@ -113,6 +113,11 @@ export async function transcribeAudio(
 
 // Streaming chat — consumes NDJSON over fetch ReadableStream. Cancellable via
 // the provided AbortSignal. Each parsed event is delivered to onEvent.
+//
+// A malformed line, invalid event shape, or unsupported envelope is a corrupt
+// or incompatible transport boundary.  Report it explicitly and terminate the
+// stream; continuing could let a later `done` overwrite the error and make a
+// corrupted stream look like an empty/successful response (#77).
 export async function streamCommand(
   req: WebCommandRequest,
   onEvent: (event: StreamEvent) => void,
@@ -154,20 +159,34 @@ export async function streamCommand(
     return;
   }
 
-  const emitLine = (line: string): void => {
+  const emitLine = (line: string): boolean => {
     let event: unknown;
     try {
       event = JSON.parse(line);
     } catch {
-      // ignore malformed line
-      return;
+      onEvent({
+        type: "error",
+        failure_state: "corrupt",
+        message: "command bridge NDJSON 串流資料毀損，已停止接收；請重新執行。",
+      });
+      return false;
+    }
+    if (!event || typeof event !== "object" || Array.isArray(event) ||
+        typeof (event as { type?: unknown }).type !== "string") {
+      onEvent({
+        type: "error",
+        failure_state: "corrupt",
+        message: "command bridge NDJSON 串流事件格式毀損，已停止接收；請重新執行。",
+      });
+      return false;
     }
     const envelopeError = envelopeVersionError(event);
     if (envelopeError) {
-      onEvent({ type: "error", message: envelopeError });
-      return;
+      onEvent({ type: "error", failure_state: "incompatible", message: envelopeError });
+      return false;
     }
     onEvent(event as StreamEvent);
+    return true;
   };
 
   const reader = res.body.getReader();
@@ -183,7 +202,10 @@ export async function streamCommand(
       const line = buffer.slice(0, newlineIndex).trim();
       buffer = buffer.slice(newlineIndex + 1);
       if (!line) continue;
-      emitLine(line);
+      if (!emitLine(line)) {
+        await reader.cancel("invalid command bridge NDJSON stream");
+        return;
+      }
     }
   }
   const tail = buffer.trim();

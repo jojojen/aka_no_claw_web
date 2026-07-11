@@ -52,6 +52,20 @@ function streamResponse(lines: unknown[]): Response {
   } as unknown as Response;
 }
 
+function rawStreamResponse(chunks: string[]): Response {
+  const encoder = new TextEncoder();
+  return {
+    ok: true,
+    status: 200,
+    body: new ReadableStream({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+        controller.close();
+      },
+    }),
+  } as unknown as Response;
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -266,6 +280,41 @@ describe("streamCommand", () => {
     );
 
     expect(events).toEqual([{ type: "done", message: "ok", envelope_version: 1 }]);
+  });
+
+  it("reports a malformed NDJSON line as corrupt and terminates the stream (#77)", async () => {
+    mockFetch(async () =>
+      rawStreamResponse([
+        '{"type":"delta","text":"partial"}\n',
+        '{not-json}\n{"type":"done","message":"must not be delivered"}\n',
+      ]),
+    );
+    const events: unknown[] = [];
+
+    await streamCommand(
+      { mode: "chat", input: "test", source: "aka_no_claw_web" },
+      (event) => events.push(event),
+      new AbortController().signal,
+    );
+
+    expect(events).toEqual([
+      { type: "delta", text: "partial" },
+      expect.objectContaining({ type: "error", failure_state: "corrupt" }),
+    ]);
+    expect((events[1] as { message: string }).message).toContain("毀損");
+  });
+
+  it("reports a non-event JSON value as corrupt instead of silently dropping it (#77)", async () => {
+    mockFetch(async () => rawStreamResponse(['{"type":"delta","text":"partial"}\nnull\n']));
+    const events: unknown[] = [];
+
+    await streamCommand(
+      { mode: "chat", input: "test", source: "aka_no_claw_web" },
+      (event) => events.push(event),
+      new AbortController().signal,
+    );
+
+    expect(events[1]).toMatchObject({ type: "error", failure_state: "corrupt" });
   });
 });
 
