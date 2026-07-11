@@ -16,6 +16,7 @@ import type {
   WebCommandRequest,
 } from "../types/command";
 import { emptySnapshot } from "../session";
+import { envelopeVersionError } from "./envelope";
 
 const COMMAND_URL = "/api/command";
 const STREAM_URL = "/api/command/stream";
@@ -61,7 +62,10 @@ export async function sendCommand(req: WebCommandRequest): Promise<CommandRespon
     }
     return { status: "error", message };
   }
-  return (await res.json()) as CommandResponse;
+  const data = (await res.json()) as CommandResponse;
+  const envelopeError = envelopeVersionError(data);
+  if (envelopeError) return { status: "error", message: envelopeError };
+  return data;
 }
 
 // Local speech-to-text. Audio bytes are sent to the command bridge, which runs
@@ -150,6 +154,22 @@ export async function streamCommand(
     return;
   }
 
+  const emitLine = (line: string): void => {
+    let event: unknown;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      // ignore malformed line
+      return;
+    }
+    const envelopeError = envelopeVersionError(event);
+    if (envelopeError) {
+      onEvent({ type: "error", message: envelopeError });
+      return;
+    }
+    onEvent(event as StreamEvent);
+  };
+
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -163,21 +183,11 @@ export async function streamCommand(
       const line = buffer.slice(0, newlineIndex).trim();
       buffer = buffer.slice(newlineIndex + 1);
       if (!line) continue;
-      try {
-        onEvent(JSON.parse(line) as StreamEvent);
-      } catch {
-        // ignore malformed line
-      }
+      emitLine(line);
     }
   }
   const tail = buffer.trim();
-  if (tail) {
-    try {
-      onEvent(JSON.parse(tail) as StreamEvent);
-    } catch {
-      // ignore
-    }
-  }
+  if (tail) emitLine(tail);
 }
 
 // Start a long async job (deep product research). Returns a job_id to poll.

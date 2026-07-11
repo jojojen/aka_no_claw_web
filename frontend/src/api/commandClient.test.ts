@@ -17,6 +17,7 @@ import {
   runWorkflowCommand,
   saveChatSettings,
   saveSession,
+  sendCommand,
   streamCommand,
   transcribeAudio,
 } from "./commandClient";
@@ -169,6 +170,27 @@ describe("clearSession", () => {
   });
 });
 
+describe("sendCommand", () => {
+  it("accepts a response with no envelope_version (legacy v0)", async () => {
+    mockFetch(async () => jsonResponse({ status: "ok", message: "hi" }));
+    const res = await sendCommand({ mode: "chat", input: "test", source: "aka_no_claw_web" });
+    expect(res).toEqual({ status: "ok", message: "hi" });
+  });
+
+  it("accepts a response with the current supported envelope_version", async () => {
+    mockFetch(async () => jsonResponse({ status: "ok", message: "hi", envelope_version: 1 }));
+    const res = await sendCommand({ mode: "chat", input: "test", source: "aka_no_claw_web" });
+    expect(res.status).toBe("ok");
+  });
+
+  it("fails soft to an error when envelope_version is unsupported (#77 D2.4 follow-up)", async () => {
+    mockFetch(async () => jsonResponse({ status: "ok", message: "hi", envelope_version: 99 }));
+    const res = await sendCommand({ mode: "chat", input: "test", source: "aka_no_claw_web" });
+    expect(res.status).toBe("error");
+    expect((res as { message?: string }).message).toContain("99");
+  });
+});
+
 describe("streamCommand", () => {
   it("connects directly to the bridge port before falling back to the dev proxy", async () => {
     const seenUrls: string[] = [];
@@ -212,6 +234,38 @@ describe("streamCommand", () => {
     expect(seenUrls[0]).toContain(":8781/api/command/stream");
     expect(seenUrls[1]).toBe("/api/command/stream");
     expect(events).toEqual([{ type: "done", message: "proxy ok" }]);
+  });
+
+  it("surfaces an error event for an event with an unsupported envelope_version (#77 D2.4 follow-up)", async () => {
+    mockFetch(async () =>
+      streamResponse([{ type: "done", message: "ok", envelope_version: 99 }]),
+    );
+    const events: unknown[] = [];
+
+    await streamCommand(
+      { mode: "chat", input: "test", source: "aka_no_claw_web" },
+      (event) => events.push(event),
+      new AbortController().signal,
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: "error" });
+    expect((events[0] as { message: string }).message).toContain("99");
+  });
+
+  it("passes through an event with the current supported envelope_version", async () => {
+    mockFetch(async () =>
+      streamResponse([{ type: "done", message: "ok", envelope_version: 1 }]),
+    );
+    const events: unknown[] = [];
+
+    await streamCommand(
+      { mode: "chat", input: "test", source: "aka_no_claw_web" },
+      (event) => events.push(event),
+      new AbortController().signal,
+    );
+
+    expect(events).toEqual([{ type: "done", message: "ok", envelope_version: 1 }]);
   });
 });
 
