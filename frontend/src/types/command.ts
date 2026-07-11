@@ -164,7 +164,11 @@ export type StreamEvent =
       failure_state?: "corrupt" | "incompatible";
     }
   | { type: "redirect"; intent: string; description: string; workflow_id?: string }
-  | { type: "process"; text: string };
+  | { type: "process"; text: string }
+  // A long streamed run (goal loop / research) is backed by this recovery job
+  // id. If the NDJSON stream drops (mobile screen-lock), poll this job for the
+  // final answer instead of losing it (aka_no_claw#81 PR3).
+  | { type: "job"; job_id: string };
 
 // Async job model from POST /api/command/async + GET /api/command/poll.
 // Long commands (deep product research) run decoupled from the connection so a

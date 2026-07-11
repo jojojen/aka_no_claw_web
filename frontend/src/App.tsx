@@ -140,6 +140,9 @@ export default function App() {
   const [stagedFile, setStagedFile] = useState<{ file: File; previewUrl: string } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const stopPollRef = useRef<(() => void) | null>(null);
+  // Late-bound handle to resumePolling (declared below runStreaming) so a
+  // dropped chat stream can hand off to job polling without a dependency cycle.
+  const resumePollingRef = useRef<((jobId: string, assistantId: string) => void) | null>(null);
 
   // Debounced writer: a burst of state changes (streaming deltas, rapid taps)
   // collapses into one POST so token streaming doesn't hammer the backend.
@@ -376,7 +379,12 @@ export default function App() {
       // track `let` assignments inside async callbacks through try/finally, so
       // it narrows the variable to `never` after the block. Reading off a `const`
       // object property avoids that limitation.
-      const rd: { redirect: { intent: string; description: string; workflowId?: string } | null } = { redirect: null };
+      const rd: {
+        redirect: { intent: string; description: string; workflowId?: string } | null;
+        jobId: string | null;
+        done: boolean;
+        handedOff: boolean;
+      } = { redirect: null, jobId: null, done: false, handedOff: false };
       try {
         await streamCommand(
           req,
@@ -384,10 +392,16 @@ export default function App() {
             if (event.type === "process") {
               procAcc += (procAcc ? "\n" : "") + event.text;
               patch(assistantId, { processText: procAcc });
+            } else if (event.type === "job") {
+              // Long run backed by a recovery job — stamp the message so a
+              // reload (activeJobId) or a mid-stream drop can poll it (#81 PR3).
+              rd.jobId = event.job_id;
+              patch(assistantId, { jobId: event.job_id });
             } else if (event.type === "delta") {
               acc += event.text;
               patch(assistantId, { text: acc });
             } else if (event.type === "done") {
+              rd.done = true;
               patch(assistantId, {
                 text: event.message || acc,
                 status: "ok",
@@ -410,6 +424,13 @@ export default function App() {
       } catch (err) {
         if ((err as Error)?.name === "AbortError") {
           patch(assistantId, { generating: false }); // keep partial text
+        } else if (!rd.done && rd.jobId && resumePollingRef.current) {
+          // The stream dropped (e.g. mobile screen-lock kills the held NDJSON
+          // connection) but the run is job-backed and still finishing on the
+          // server. Recover the final answer by polling instead of surfacing a
+          // transport error (#81 PR3).
+          rd.handedOff = true;
+          resumePollingRef.current(rd.jobId, assistantId);
         } else {
           patch(assistantId, {
             text: acc ? `${acc}\n\n[錯誤] ${String(err)}` : `無法連線到本機 command bridge（${String(err)}）`,
@@ -420,7 +441,8 @@ export default function App() {
       } finally {
         // If redirect detected, keep generating=true — the redirect handler
         // calls runWorkflowCard which will clear it in its own finally.
-        if (!rd.redirect) {
+        // If handed off to polling, resumePolling owns the generating flag.
+        if (!rd.redirect && !rd.handedOff) {
           setGenerating(false);
         }
         abortRef.current = null;
@@ -484,6 +506,9 @@ export default function App() {
     },
     [patch],
   );
+  // Bind the late ref so runStreaming (declared above) can hand a dropped
+  // chat stream off to job polling.
+  resumePollingRef.current = resumePolling;
 
   // result survives a phone screen-lock or a dropped connection (龍蝦-style).
   const runPolling = useCallback(
