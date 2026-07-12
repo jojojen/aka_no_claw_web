@@ -9,10 +9,11 @@ type Props = {
   onAction: (messageId: string, jobId: string, callbackData: string) => void;
   onChatAction: (action: CommandAction) => void;
   onVoiceClarify?: (messageId: string, selection: VoiceClarifySelection) => void;
+  onVoiceDirectReject?: (messageId: string) => void;
   chatActionsDisabled?: boolean;
 };
 
-export function ConversationStream({ messages, onAction, onChatAction, onVoiceClarify, chatActionsDisabled }: Props) {
+export function ConversationStream({ messages, onAction, onChatAction, onVoiceClarify, onVoiceDirectReject, chatActionsDisabled }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export function ConversationStream({ messages, onAction, onChatAction, onVoiceCl
             onAction={onAction}
             onChatAction={onChatAction}
             onVoiceClarify={onVoiceClarify}
+            onVoiceDirectReject={onVoiceDirectReject}
             chatActionsDisabled={chatActionsDisabled}
           />
         ),

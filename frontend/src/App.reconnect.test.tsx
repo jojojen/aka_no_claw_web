@@ -28,6 +28,7 @@ vi.mock("./api/commandClient", () => ({
   saveChatSettings: vi.fn(),
   sendCommand: vi.fn(),
   streamCommand: vi.fn(),
+  reportVoiceDirectRejection: vi.fn(),
   startAsyncCommand: vi.fn(),
   runAction: vi.fn(),
   runMusicAction: vi.fn(),

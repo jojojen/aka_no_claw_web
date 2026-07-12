@@ -7,6 +7,7 @@ import {
   getModelRoutes,
   getNowPlaying,
   loadSession,
+  reportVoiceDirectRejection,
   restartAll,
   runBluetoothAction,
   runBluetoothScan,
@@ -200,6 +201,32 @@ describe("confirmVoiceAction", () => {
     mockFetch(async () => { throw new Error("offline"); });
 
     const res = await confirmVoiceAction("music.playpause");
+
+    expect(res.status).toBe("error");
+    expect(res.message).toContain("offline");
+  });
+});
+
+describe("reportVoiceDirectRejection", () => {
+  it("POSTs the prototype_id to the voice feedback route (#82 PR4)", async () => {
+    const seen: { url?: string; body?: string } = {};
+    mockFetch(async (url, init) => {
+      seen.url = url;
+      seen.body = String(init?.body);
+      return jsonResponse({ status: "ok", message: "已記錄回饋" });
+    });
+
+    const res = await reportVoiceDirectRejection("p-direct");
+
+    expect(seen.url).toBe("/api/command/voice/feedback");
+    expect(JSON.parse(seen.body ?? "{}")).toEqual({ prototype_id: "p-direct" });
+    expect(res.status).toBe("ok");
+  });
+
+  it("fails soft when the bridge is unreachable", async () => {
+    mockFetch(async () => { throw new Error("offline"); });
+
+    const res = await reportVoiceDirectRejection("p-direct");
 
     expect(res.status).toBe("error");
     expect(res.message).toContain("offline");

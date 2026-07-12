@@ -165,6 +165,18 @@ export type VoiceClarification = {
   learning_token?: string;
 };
 
+// Voice direct fast path (aka_no_claw#82 PR4): a mature low-risk prototype
+// match was dispatched server-side without entering the Chat router.
+// `prototype_id` addresses the「不是這個」negative-feedback endpoint.
+export type VoiceDirectAction = {
+  kind: "direct_action";
+  action: { action_id: string; display_label: string; risk: string };
+  confidence: number;
+  margin: number;
+  reason_code: string;
+  prototype_id: string;
+};
+
 export type CommandResponse = {
   status: ResponseStatus;
   message: string;
@@ -175,6 +187,7 @@ export type CommandResponse = {
   sources?: CommandSource[];
   model_metadata?: ModelMetadata;
   clarification?: VoiceClarification;
+  direct_action?: VoiceDirectAction;
 };
 
 // Speech-to-text bridge response. The request sends the MediaRecorder/native
@@ -203,6 +216,7 @@ export type StreamEvent =
       model_metadata?: ModelMetadata;
       actions?: CommandAction[];
       clarification?: VoiceClarification;
+      direct_action?: VoiceDirectAction;
     }
   | {
       type: "error";
@@ -329,4 +343,8 @@ export type Message = {
   // the「都不是」fallback resend preserves utterance identity.
   voiceUtteranceId?: string;
   voiceDurationMs?: number;
+  // Voice direct fast path (aka_no_claw#82 PR4): shows the「不是這個」
+  // negative-feedback button. In-session only, like clarification.
+  directAction?: VoiceDirectAction;
+  directActionResolved?: boolean;
 };

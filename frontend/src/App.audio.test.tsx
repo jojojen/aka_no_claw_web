@@ -20,6 +20,7 @@ vi.mock("./api/commandClient", () => ({
   clearSession: vi.fn(),
   sendCommand: vi.fn(),
   streamCommand: vi.fn(),
+  reportVoiceDirectRejection: vi.fn(),
   transcribeAudio: vi.fn(),
   startAsyncCommand: vi.fn(),
   pollJob: vi.fn(),

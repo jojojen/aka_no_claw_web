@@ -36,10 +36,11 @@ type Props = {
   onAction: (messageId: string, jobId: string, callbackData: string) => void;
   onChatAction?: (action: CommandAction) => void;
   onVoiceClarify?: (messageId: string, selection: VoiceClarifySelection) => void;
+  onVoiceDirectReject?: (messageId: string) => void;
   chatActionsDisabled?: boolean;
 };
 
-export function MessageBubble({ message, onAction, onChatAction, onVoiceClarify, chatActionsDisabled }: Props) {
+export function MessageBubble({ message, onAction, onChatAction, onVoiceClarify, onVoiceDirectReject, chatActionsDisabled }: Props) {
   const isUser = message.role === "user";
   const base = "max-w-[85%] whitespace-pre-wrap break-words rounded px-3 py-2 text-sm leading-relaxed";
   const tone = isUser
@@ -55,6 +56,9 @@ export function MessageBubble({ message, onAction, onChatAction, onVoiceClarify,
   // submits; internal scores are never displayed (design §10.3).
   const canClarify =
     !message.generating && !message.clarificationResolved && !chatActionsDisabled;
+  const directAction = !isUser ? message.directAction : undefined;
+  const canDirectReject =
+    !message.generating && !message.directActionResolved && !chatActionsDisabled;
   const metaText = modelMetaText(message);
   const [processOpen, setProcessOpen] = useState(false);
 
@@ -151,6 +155,20 @@ export function MessageBubble({ message, onAction, onChatAction, onVoiceClarify,
             onClick={() => onVoiceClarify?.(message.id, { kind: "fallback" })}
           >
             {clarification.fallback.label}
+          </FlatActionButton>
+        </div>
+      )}
+      {directAction && (
+        <div
+          data-testid="voice-direct-feedback"
+          className="mt-2 flex max-w-[85%] flex-wrap gap-2 self-start"
+        >
+          <FlatActionButton
+            variant="muted"
+            disabled={!canDirectReject}
+            onClick={() => onVoiceDirectReject?.(message.id)}
+          >
+            不是這個
           </FlatActionButton>
         </div>
       )}

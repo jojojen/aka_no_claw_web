@@ -1,8 +1,7 @@
-// aka_no_claw#82 PR1 — voice clarification card. A short voice utterance the
-// backend suspects is a misrecognized control command comes back as a `done`
-// stream event carrying `clarification`; the UI renders candidate buttons plus
-// the「都不是」fallback, dispatches a candidate via action_id only, and resends
-// the transcript with clarification_declined on fallback.
+// aka_no_claw#82 PR4 — voice direct fast path. A mature low-risk prototype
+// match is dispatched server-side; the `done` stream event carries
+// `direct_action` and the UI renders the「不是這個」negative-feedback button,
+// which reports the prototype_id and then disables itself.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -68,25 +67,22 @@ class FakeMediaRecorder {
   }
 }
 
-const CLARIFICATION = {
-  kind: "clarify" as const,
-  transcript: "關鍵善",
-  reason_code: "first_use_control_suspicion",
-  candidates: [
-    { action_id: "ir.fan.power", display_label: "fan／power", risk: "low", score: 0 },
-    { action_id: "music.playpause", display_label: "暫停／繼續播放", risk: "low", score: 0 },
-  ],
-  fallback: { label: "都不是，當一般問題處理" },
-  learning_token: "tok-learn-1",
+const DIRECT_ACTION = {
+  kind: "direct_action" as const,
+  action: { action_id: "music.playpause", display_label: "暫停／繼續播放", risk: "low" },
+  confidence: 0.94,
+  margin: 0.18,
+  reason_code: "prototype_high_confidence",
+  prototype_id: "p-direct",
 };
 
-async function recordVoiceClarification() {
+async function recordVoiceDirectAction() {
   render(<App />);
   await waitFor(() => expect(client.loadSession).toHaveBeenCalled());
   fireEvent.click(screen.getByRole("button", { name: "開始語音輸入" }));
   fireEvent.click(await screen.findByRole("button", { name: "停止錄音" }));
   await waitFor(() => expect(client.streamCommand).toHaveBeenCalledTimes(1));
-  await screen.findByTestId("voice-clarification");
+  await screen.findByTestId("voice-direct-feedback");
 }
 
 beforeEach(() => {
@@ -94,14 +90,14 @@ beforeEach(() => {
   vi.mocked(client.loadSession).mockResolvedValue({ status: "ok", session: emptySnapshot() });
   vi.mocked(client.transcribeAudio).mockResolvedValue({
     status: "ok",
-    transcript: "關鍵善",
+    transcript: "暫停",
     utterance_id: "utt-1",
   });
   vi.mocked(client.streamCommand).mockImplementation(async (_req, onEvent) => {
     onEvent({
       type: "done",
-      message: "我聽到：「關鍵善」\n你是要執行哪一個？",
-      clarification: CLARIFICATION,
+      message: "已辨識：暫停／繼續播放\n⏯️ 已切換播放狀態",
+      direct_action: DIRECT_ACTION,
     });
   });
   Object.defineProperty(navigator, "mediaDevices", {
@@ -117,40 +113,36 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("App — voice clarification (#82 PR1)", () => {
-  it("renders candidate buttons and dispatches the chosen action by id only", async () => {
-    vi.mocked(client.confirmVoiceAction).mockResolvedValue({
+describe("App — voice direct fast path (#82 PR4)", () => {
+  it("renders the「不是這個」button and reports the prototype_id on click", async () => {
+    vi.mocked(client.reportVoiceDirectRejection).mockResolvedValue({
       status: "ok",
-      message: "已送出 fan power",
+      message: "已記錄回饋，將降低此語音對應的信任度。",
     });
-    await recordVoiceClarification();
+    await recordVoiceDirectAction();
 
-    fireEvent.click(screen.getByRole("button", { name: "fan／power" }));
-    // PR3: the opaque learning token rides along with the action_id.
+    const btn = screen.getByRole("button", { name: "不是這個" });
+    fireEvent.click(btn);
     await waitFor(() =>
-      expect(client.confirmVoiceAction).toHaveBeenCalledWith(
-        "ir.fan.power",
-        "tok-learn-1",
-      ),
+      expect(client.reportVoiceDirectRejection).toHaveBeenCalledWith("p-direct"),
     );
-    expect(await screen.findByText("已送出 fan power")).toBeTruthy();
-    // Buttons disable after the selection to prevent double submits.
-    expect(
-      (screen.getByRole("button", { name: "暫停／繼續播放" }) as HTMLButtonElement).disabled,
-    ).toBe(true);
+    expect(await screen.findByText(/已記錄回饋/)).toBeTruthy();
+    // The button disables after a click to prevent duplicate rejections.
+    expect((screen.getByRole("button", { name: "不是這個" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "不是這個" }));
+    expect(client.reportVoiceDirectRejection).toHaveBeenCalledTimes(1);
   });
 
-  it("resends the transcript with clarification_declined on fallback", async () => {
-    await recordVoiceClarification();
-
-    fireEvent.click(screen.getByRole("button", { name: "都不是，當一般問題處理" }));
-    await waitFor(() => expect(client.streamCommand).toHaveBeenCalledTimes(2));
-    expect(vi.mocked(client.streamCommand).mock.calls[1][0]).toMatchObject({
-      mode: "chat",
-      input: "關鍵善",
-      input_source: "voice",
-      voice: { utterance_id: "utt-1", clarification_declined: true },
+  it("does not render the feedback block without direct_action", async () => {
+    vi.mocked(client.streamCommand).mockImplementation(async (_req, onEvent) => {
+      onEvent({ type: "done", message: "一般回答" });
     });
-    expect(client.confirmVoiceAction).not.toHaveBeenCalled();
+    render(<App />);
+    await waitFor(() => expect(client.loadSession).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "開始語音輸入" }));
+    fireEvent.click(await screen.findByRole("button", { name: "停止錄音" }));
+    await waitFor(() => expect(client.streamCommand).toHaveBeenCalledTimes(1));
+    await screen.findByText("一般回答");
+    expect(screen.queryByTestId("voice-direct-feedback")).toBeNull();
   });
 });

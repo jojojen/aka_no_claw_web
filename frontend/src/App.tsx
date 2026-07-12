@@ -37,6 +37,7 @@ import {
   saveChatSettings,
   sendCommand,
   startAsyncCommand,
+  reportVoiceDirectRejection,
   restartAll,
   streamCommand,
   transcribeAudio,
@@ -425,6 +426,8 @@ export default function App() {
                       voiceDurationMs: req.voice?.duration_ms,
                     }
                   : {}),
+                // Direct fast path (#82 PR4): shows the「不是這個」button.
+                directAction: event.direct_action,
                 generating: false,
               });
             } else if (event.type === "error") {
@@ -1078,6 +1081,20 @@ export default function App() {
     [generating, messages, patch, onSend],
   );
 
+  // Direct fast path negative feedback (#82 PR4): the「不是這個」button reports
+  // the prototype_id so the bridge lowers trust in that voice→action mapping.
+  // The action itself already executed — this never re-routes or undoes it.
+  const onVoiceDirectReject = useCallback(
+    async (messageId: string) => {
+      const msg = messages.find((m) => m.id === messageId);
+      if (!msg?.directAction || msg.directActionResolved) return;
+      patch(messageId, { directActionResolved: true });
+      const res = await reportVoiceDirectRejection(msg.directAction.prototype_id);
+      patch(messageId, { text: `${msg.text}\n${res.message}` });
+    },
+    [messages, patch],
+  );
+
   // Goal-loop control buttons (continue/stop/save) arrive as CommandAction on a
   // "done" stream event, not scoped to a jobId -- clicking one resends
   // action.input as the next chat turn while showing action.label as what the
@@ -1495,6 +1512,7 @@ export default function App() {
         onAction={onAction}
         onChatAction={onChatAction}
         onVoiceClarify={onVoiceClarify}
+        onVoiceDirectReject={onVoiceDirectReject}
         chatActionsDisabled={generating}
       />
 

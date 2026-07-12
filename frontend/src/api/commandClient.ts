@@ -37,6 +37,7 @@ const MODEL_ROUTES_URL = "/api/command/model-routes";
 const CHAT_SETTINGS_URL = "/api/command/chat-settings";
 const TRANSCRIBE_URL = "/api/command/transcribe";
 const VOICE_CONFIRM_URL = "/api/command/voice/confirm";
+const VOICE_FEEDBACK_URL = "/api/command/voice/feedback";
 
 function streamUrlCandidates(): string[] {
   if (typeof window === "undefined") return [STREAM_URL];
@@ -131,6 +132,23 @@ export async function confirmVoiceAction(
         action_id: actionId,
         ...(learningToken ? { learning_token: learningToken } : {}),
       }),
+    });
+    return (await res.json()) as ActionResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+// Negative feedback「不是這個」against the prototype behind a direct dispatch
+// (aka_no_claw#82 PR4, design §7.6). Fail-soft like confirmVoiceAction.
+export async function reportVoiceDirectRejection(
+  prototypeId: string,
+): Promise<ActionResponse> {
+  try {
+    const res = await fetch(VOICE_FEEDBACK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prototype_id: prototypeId }),
     });
     return (await res.json()) as ActionResponse;
   } catch (err) {
