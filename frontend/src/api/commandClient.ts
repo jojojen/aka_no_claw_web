@@ -36,6 +36,7 @@ const RESTART_ALL_URL = "/api/command/restartall";
 const MODEL_ROUTES_URL = "/api/command/model-routes";
 const CHAT_SETTINGS_URL = "/api/command/chat-settings";
 const TRANSCRIBE_URL = "/api/command/transcribe";
+const VOICE_CONFIRM_URL = "/api/command/voice/confirm";
 
 function streamUrlCandidates(): string[] {
   if (typeof window === "undefined") return [STREAM_URL];
@@ -108,6 +109,23 @@ export async function transcribeAudio(
       return { status: "error", message: data.message || `HTTP ${res.status}` };
     }
     return data;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+// Execute a voice clarification candidate (aka_no_claw#82 PR1). Only the
+// action_id is submitted — the bridge re-reads its action registry and
+// re-validates availability/risk server-side before dispatching, so labels,
+// payloads and risk levels shown in the UI are never trusted.
+export async function confirmVoiceAction(actionId: string): Promise<ActionResponse> {
+  try {
+    const res = await fetch(VOICE_CONFIRM_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action_id: actionId }),
+    });
+    return (await res.json()) as ActionResponse;
   } catch (err) {
     return { status: "error", message: String(err) };
   }

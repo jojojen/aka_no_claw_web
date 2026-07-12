@@ -11,11 +11,13 @@ import type {
   SessionSnapshot,
   Submode,
   VisionRoute,
+  VoiceRequestMetadata,
   WebCommandRequest,
 } from "./types/command";
 import {
   cancelJob,
   clearSession,
+  confirmVoiceAction,
   getChatSettings,
   getModelRoutes,
   getNowPlaying,
@@ -53,6 +55,7 @@ import { ChatBackendSelector } from "./components/ChatBackendSelector";
 import { InvestmentActionPanel } from "./components/InvestmentActionPanel";
 import { LifeActionPanel } from "./components/LifeActionPanel";
 import { ConversationStream } from "./components/ConversationStream";
+import type { VoiceClarifySelection } from "./components/MessageBubble";
 import { InputBar } from "./components/InputBar";
 import { CaptureModeChip } from "./components/CaptureModeChip";
 import { ChatSettingsModal } from "./components/ChatSettingsModal";
@@ -413,6 +416,15 @@ export default function App() {
                 status: "ok",
                 modelMetadata: event.model_metadata,
                 chatActions: event.actions,
+                // Voice clarification card (#82): keep the originating voice
+                // identity so the「都不是」fallback resend preserves it.
+                clarification: event.clarification,
+                ...(event.clarification
+                  ? {
+                      voiceUtteranceId: req.voice?.utterance_id,
+                      voiceDurationMs: req.voice?.duration_ms,
+                    }
+                  : {}),
                 generating: false,
               });
             } else if (event.type === "error") {
@@ -874,7 +886,7 @@ export default function App() {
   }, [generating, runScheduleCard]);
 
   const onSend = useCallback(
-    async (text: string) => {
+    async (text: string, voiceMeta?: VoiceRequestMetadata) => {
       if (generating) return;
       const lifeRoutesToChat = mode === "life" && lifeCategory !== "music";
       const chatLikeMode = mode === "chat" || lifeRoutesToChat;
@@ -955,6 +967,11 @@ export default function App() {
             history,
             session_id: getOrCreateSessionId(),
             conversation_id: CONVERSATION_ID,
+            // Voice provenance (#82): lets the bridge's voice-intent gate
+            // clarify a short misrecognized control utterance before /search.
+            ...(voiceMeta
+              ? { input_source: "voice" as const, voice: voiceMeta }
+              : {}),
           }
         : buildRequest(text, history);
       if (chatLikeMode) {
@@ -984,7 +1001,7 @@ export default function App() {
   );
 
   const onTranscribe = useCallback(
-    async (audio: Blob) => {
+    async (audio: Blob, durationMs: number) => {
       const res = await transcribeAudio(audio);
       const transcript = res.transcript?.trim();
       if (res.status !== "ok" || !transcript) {
@@ -992,9 +1009,70 @@ export default function App() {
       }
       // Deliberately enter through the same handler as typed input so active
       // mode, workflow/schedule capture, history, and NLP routing stay intact.
-      await onSend(transcript);
+      // Voice provenance rides along so the bridge's #82 gate can clarify a
+      // short misrecognized control utterance instead of running /search.
+      await onSend(transcript, {
+        utterance_id: res.utterance_id,
+        duration_ms: durationMs > 0 ? Math.round(durationMs) : undefined,
+        stt_language: res.language,
+        stt_language_probability: res.language_probability,
+      });
     },
     [onSend],
+  );
+
+  // Voice clarification card selection (#82 PR1). A candidate button submits
+  // only the action_id — the bridge re-validates against its registry before
+  // dispatching. The「都不是」fallback resends the original transcript as a
+  // normal chat turn with clarification_declined so it is not re-gated.
+  const onVoiceClarify = useCallback(
+    async (messageId: string, selection: VoiceClarifySelection) => {
+      if (generating) return;
+      const msg = messages.find((m) => m.id === messageId);
+      if (!msg?.clarification || msg.clarificationResolved) return;
+      patch(messageId, { clarificationResolved: true });
+      if (selection.kind === "fallback") {
+        void onSend(msg.clarification.transcript, {
+          utterance_id: msg.voiceUtteranceId,
+          duration_ms: msg.voiceDurationMs,
+          clarification_declined: true,
+        });
+        return;
+      }
+      const userMsg: Message = {
+        id: uid(),
+        role: "user",
+        text: selection.label,
+        modeLabel: MODE_LABELS.chat,
+      };
+      const assistantId = uid();
+      const assistantMsg: Message = {
+        id: assistantId,
+        role: "assistant",
+        text: "",
+        modeLabel: MODE_LABELS.chat,
+        generating: true,
+      };
+      setMessages((prev) => [...prev, userMsg, assistantMsg]);
+      setGenerating(true);
+      try {
+        const res = await confirmVoiceAction(selection.actionId);
+        patch(assistantId, {
+          text: res.message,
+          status: res.status,
+          generating: false,
+        });
+      } catch (err) {
+        patch(assistantId, {
+          text: `動作執行失敗（${String(err)}）`,
+          status: "error",
+          generating: false,
+        });
+      } finally {
+        setGenerating(false);
+      }
+    },
+    [generating, messages, patch, onSend],
   );
 
   // Goal-loop control buttons (continue/stop/save) arrive as CommandAction on a
@@ -1413,6 +1491,7 @@ export default function App() {
         messages={messages}
         onAction={onAction}
         onChatAction={onChatAction}
+        onVoiceClarify={onVoiceClarify}
         chatActionsDisabled={generating}
       />
 

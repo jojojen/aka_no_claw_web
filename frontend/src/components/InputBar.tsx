@@ -11,7 +11,9 @@ type Props = {
   onSend: (text: string) => void;
   onStop: () => void;
   onSelectImage: (file: File) => void;
-  onTranscribe: (audio: Blob) => Promise<void>;
+  // durationMs is measured by the recorder (aka_no_claw#82): the backend's
+  // voice-intent gate uses it as a structural short-utterance signal.
+  onTranscribe: (audio: Blob, durationMs: number) => Promise<void>;
 };
 
 const MAX_RECORDING_MS = 60_000;
@@ -95,6 +97,7 @@ export function InputBar({
       );
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       const chunks: Blob[] = [];
+      const startedAt = Date.now();
       recorderRef.current = recorder;
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunks.push(event.data);
@@ -116,8 +119,9 @@ export function InputBar({
           setAudioError("音訊檔案過大，請縮短錄音後再試一次。");
           return;
         }
+        const durationMs = Date.now() - startedAt;
         setTranscribing(true);
-        void onTranscribe(audio)
+        void onTranscribe(audio, durationMs)
           .catch((err) => {
             setAudioError(err instanceof Error ? err.message : "語音轉文字失敗，請再試一次。");
           })

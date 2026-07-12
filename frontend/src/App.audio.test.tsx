@@ -64,7 +64,13 @@ class FakeMediaRecorder {
 beforeEach(() => {
   Object.defineProperty(window, "isSecureContext", { value: true, configurable: true });
   vi.mocked(client.loadSession).mockResolvedValue({ status: "ok", session: emptySnapshot() });
-  vi.mocked(client.transcribeAudio).mockResolvedValue({ status: "ok", transcript: "請幫我整理今天的行程" });
+  vi.mocked(client.transcribeAudio).mockResolvedValue({
+    status: "ok",
+    transcript: "請幫我整理今天的行程",
+    utterance_id: "utt-9",
+    language: "zh",
+    language_probability: 0.98,
+  });
   vi.mocked(client.streamCommand).mockImplementation(async (_req, onEvent) => {
     onEvent({ type: "done", message: "好的" });
   });
@@ -93,9 +99,16 @@ describe("App — voice input", () => {
     expect(vi.mocked(client.transcribeAudio).mock.calls[0]).toHaveLength(1);
     expect(vi.mocked(client.transcribeAudio).mock.calls[0][0]).toBeInstanceOf(Blob);
     await waitFor(() => expect(client.streamCommand).toHaveBeenCalledTimes(1));
+    // #82: voice provenance rides along with the transcript.
     expect(vi.mocked(client.streamCommand).mock.calls[0][0]).toMatchObject({
       mode: "chat",
       input: "請幫我整理今天的行程",
+      input_source: "voice",
+      voice: {
+        utterance_id: "utt-9",
+        stt_language: "zh",
+        stt_language_probability: 0.98,
+      },
     });
     expect(await screen.findByText("請幫我整理今天的行程")).toBeTruthy();
   });

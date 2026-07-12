@@ -24,14 +24,22 @@ function modelMetaText(message: Message): string | null {
   return `本次回答模型：${finalModel}。原因：${meta.fallback_reason ?? attempted}`;
 }
 
+// A voice clarification selection (aka_no_claw#82 PR1): either one of the
+// backend-provided candidates (dispatched by action_id only) or the explicit
+// 「都不是」fallback that resends the transcript as a normal question.
+export type VoiceClarifySelection =
+  | { kind: "action"; actionId: string; label: string }
+  | { kind: "fallback" };
+
 type Props = {
   message: Message;
   onAction: (messageId: string, jobId: string, callbackData: string) => void;
   onChatAction?: (action: CommandAction) => void;
+  onVoiceClarify?: (messageId: string, selection: VoiceClarifySelection) => void;
   chatActionsDisabled?: boolean;
 };
 
-export function MessageBubble({ message, onAction, onChatAction, chatActionsDisabled }: Props) {
+export function MessageBubble({ message, onAction, onChatAction, onVoiceClarify, chatActionsDisabled }: Props) {
   const isUser = message.role === "user";
   const base = "max-w-[85%] whitespace-pre-wrap break-words rounded px-3 py-2 text-sm leading-relaxed";
   const tone = isUser
@@ -42,6 +50,11 @@ export function MessageBubble({ message, onAction, onChatAction, chatActionsDisa
   const canAction = !!message.jobId && !message.generating;
   const chatActions = message.chatActions ?? [];
   const canChatAction = !message.generating && !chatActionsDisabled;
+  const clarification = !isUser ? message.clarification : undefined;
+  // Buttons disable after a click (clarificationResolved) to prevent double
+  // submits; internal scores are never displayed (design §10.3).
+  const canClarify =
+    !message.generating && !message.clarificationResolved && !chatActionsDisabled;
   const metaText = modelMetaText(message);
   const [processOpen, setProcessOpen] = useState(false);
 
@@ -109,6 +122,36 @@ export function MessageBubble({ message, onAction, onChatAction, chatActionsDisa
               {a.label}
             </FlatActionButton>
           ))}
+        </div>
+      )}
+      {clarification && (
+        <div
+          data-testid="voice-clarification"
+          className="mt-2 flex max-w-[85%] flex-wrap gap-2 self-start"
+        >
+          {clarification.candidates.map((c) => (
+            <FlatActionButton
+              key={c.action_id}
+              variant="muted"
+              disabled={!canClarify}
+              onClick={() =>
+                onVoiceClarify?.(message.id, {
+                  kind: "action",
+                  actionId: c.action_id,
+                  label: c.display_label,
+                })
+              }
+            >
+              {c.display_label}
+            </FlatActionButton>
+          ))}
+          <FlatActionButton
+            variant="muted"
+            disabled={!canClarify}
+            onClick={() => onVoiceClarify?.(message.id, { kind: "fallback" })}
+          >
+            {clarification.fallback.label}
+          </FlatActionButton>
         </div>
       )}
     </div>

@@ -29,6 +29,19 @@ export type ChatHistoryItem = {
   content: string;
 };
 
+// Voice provenance (aka_no_claw#82 PR1): sent when the input text came from
+// the local STT route, so the bridge's voice-intent gate can clarify a short
+// misrecognized control utterance before running an open-ended tool.
+export type VoiceRequestMetadata = {
+  utterance_id?: string;
+  duration_ms?: number;
+  stt_language?: string;
+  stt_language_probability?: number;
+  // True when the user picked「都不是，當一般問題處理」on a clarification
+  // card — the resent transcript keeps voice provenance without re-gating.
+  clarification_declined?: boolean;
+};
+
 export type WebCommandRequest = {
   mode: Mode;
   submode?: Submode | null;
@@ -40,6 +53,8 @@ export type WebCommandRequest = {
   history?: ChatHistoryItem[];
   session_id?: string;
   conversation_id?: string;
+  input_source?: "text" | "voice";
+  voice?: VoiceRequestMetadata;
 };
 
 export type ResponseStatus = "ok" | "partial" | "error" | "unsupported";
@@ -128,6 +143,25 @@ export type ChatSettingsResponse = {
   };
 };
 
+// Voice clarification contract (aka_no_claw#82 PR1): the bridge answers a
+// suspicious short voice utterance with candidates from its action registry
+// instead of running /search. The client submits back ONLY the action_id —
+// the backend re-validates availability/risk before dispatching.
+export type VoiceClarificationCandidate = {
+  action_id: string;
+  display_label: string;
+  risk: string;
+  score?: number;
+};
+
+export type VoiceClarification = {
+  kind: "clarify";
+  transcript: string;
+  reason_code: string;
+  candidates: VoiceClarificationCandidate[];
+  fallback: { label: string };
+};
+
 export type CommandResponse = {
   status: ResponseStatus;
   message: string;
@@ -137,6 +171,7 @@ export type CommandResponse = {
   warnings?: string[];
   sources?: CommandSource[];
   model_metadata?: ModelMetadata;
+  clarification?: VoiceClarification;
 };
 
 // Speech-to-text bridge response. The request sends the MediaRecorder/native
@@ -144,7 +179,13 @@ export type CommandResponse = {
 // transcription so no audio leaves the operator's machine.
 export type TranscriptionResponse = {
   status: "ok" | "error";
+  // Opaque id for the voice personalization pipeline (aka_no_claw#82) —
+  // echoed back in the command request's voice metadata.
+  utterance_id?: string;
   transcript?: string;
+  language?: string;
+  language_probability?: number;
+  duration_seconds?: number;
   message?: string;
 };
 
@@ -153,7 +194,13 @@ export type StreamEvent =
   | { type: "start"; request_id: string }
   | { type: "delta"; text: string }
   | { type: "heartbeat" }
-  | { type: "done"; message: string; model_metadata?: ModelMetadata; actions?: CommandAction[] }
+  | {
+      type: "done";
+      message: string;
+      model_metadata?: ModelMetadata;
+      actions?: CommandAction[];
+      clarification?: VoiceClarification;
+    }
   | {
       type: "error";
       message: string;
@@ -271,4 +318,12 @@ export type Message = {
   // Rendered as a collapsed disclosure above the answer body; excluded from
   // the history payload sent to the bridge (must not enter model context).
   processText?: string;
+  // Voice clarification card (aka_no_claw#82 PR1). Like chatActions, this is
+  // in-session only — sanitizeMessage does not restore it after a reload.
+  clarification?: VoiceClarification;
+  clarificationResolved?: boolean;
+  // Voice provenance of the request that produced this clarification, kept so
+  // the「都不是」fallback resend preserves utterance identity.
+  voiceUtteranceId?: string;
+  voiceDurationMs?: number;
 };

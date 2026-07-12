@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   cancelJob,
   clearSession,
+  confirmVoiceAction,
   getChatSettings,
   getModelRoutes,
   getNowPlaying,
@@ -158,6 +159,32 @@ describe("transcribeAudio", () => {
     mockFetch(async () => { throw new Error("offline"); });
 
     const res = await transcribeAudio(new Blob(["voice"], { type: "audio/mp4" }));
+
+    expect(res.status).toBe("error");
+    expect(res.message).toContain("offline");
+  });
+});
+
+describe("confirmVoiceAction", () => {
+  it("POSTs only the action_id to the voice confirm route (#82)", async () => {
+    const seen: { url?: string; body?: string } = {};
+    mockFetch(async (url, init) => {
+      seen.url = url;
+      seen.body = String(init?.body);
+      return jsonResponse({ status: "ok", message: "已送出", actions: [] });
+    });
+
+    const res = await confirmVoiceAction("ir.fan.power");
+
+    expect(seen.url).toBe("/api/command/voice/confirm");
+    expect(JSON.parse(seen.body ?? "{}")).toEqual({ action_id: "ir.fan.power" });
+    expect(res.status).toBe("ok");
+  });
+
+  it("fails soft when the bridge is unreachable", async () => {
+    mockFetch(async () => { throw new Error("offline"); });
+
+    const res = await confirmVoiceAction("music.playpause");
 
     expect(res.status).toBe("error");
     expect(res.message).toContain("offline");
