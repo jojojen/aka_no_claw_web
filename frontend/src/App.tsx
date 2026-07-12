@@ -1056,7 +1056,10 @@ export default function App() {
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
       setGenerating(true);
       try {
-        const res = await confirmVoiceAction(selection.actionId);
+        const res = await confirmVoiceAction(
+          selection.actionId,
+          msg.clarification.learning_token,
+        );
         patch(assistantId, {
           text: res.message,
           status: res.status,

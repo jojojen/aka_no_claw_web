@@ -181,6 +181,21 @@ describe("confirmVoiceAction", () => {
     expect(res.status).toBe("ok");
   });
 
+  it("includes the learning token in the body when provided (#82 PR3)", async () => {
+    const seen: { body?: string } = {};
+    mockFetch(async (_url, init) => {
+      seen.body = String(init?.body);
+      return jsonResponse({ status: "ok", message: "已送出", actions: [] });
+    });
+
+    await confirmVoiceAction("ir.fan.power", "tok-learn-1");
+
+    expect(JSON.parse(seen.body ?? "{}")).toEqual({
+      action_id: "ir.fan.power",
+      learning_token: "tok-learn-1",
+    });
+  });
+
   it("fails soft when the bridge is unreachable", async () => {
     mockFetch(async () => { throw new Error("offline"); });
 

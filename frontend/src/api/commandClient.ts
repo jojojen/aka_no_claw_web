@@ -115,15 +115,22 @@ export async function transcribeAudio(
 }
 
 // Execute a voice clarification candidate (aka_no_claw#82 PR1). Only the
-// action_id is submitted — the bridge re-reads its action registry and
-// re-validates availability/risk server-side before dispatching, so labels,
-// payloads and risk levels shown in the UI are never trusted.
-export async function confirmVoiceAction(actionId: string): Promise<ActionResponse> {
+// action_id (+ the opaque single-use learning token, PR3) is submitted — the
+// bridge re-reads its action registry and re-validates availability/risk
+// server-side before dispatching, so labels, payloads and risk levels shown
+// in the UI are never trusted.
+export async function confirmVoiceAction(
+  actionId: string,
+  learningToken?: string,
+): Promise<ActionResponse> {
   try {
     const res = await fetch(VOICE_CONFIRM_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action_id: actionId }),
+      body: JSON.stringify({
+        action_id: actionId,
+        ...(learningToken ? { learning_token: learningToken } : {}),
+      }),
     });
     return (await res.json()) as ActionResponse;
   } catch (err) {

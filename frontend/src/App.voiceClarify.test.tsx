@@ -76,6 +76,7 @@ const CLARIFICATION = {
     { action_id: "music.playpause", display_label: "暫停／繼續播放", risk: "low", score: 0 },
   ],
   fallback: { label: "都不是，當一般問題處理" },
+  learning_token: "tok-learn-1",
 };
 
 async function recordVoiceClarification() {
@@ -124,8 +125,12 @@ describe("App — voice clarification (#82 PR1)", () => {
     await recordVoiceClarification();
 
     fireEvent.click(screen.getByRole("button", { name: "fan／power" }));
+    // PR3: the opaque learning token rides along with the action_id.
     await waitFor(() =>
-      expect(client.confirmVoiceAction).toHaveBeenCalledWith("ir.fan.power"),
+      expect(client.confirmVoiceAction).toHaveBeenCalledWith(
+        "ir.fan.power",
+        "tok-learn-1",
+      ),
     );
     expect(await screen.findByText("已送出 fan power")).toBeTruthy();
     // Buttons disable after the selection to prevent double submits.

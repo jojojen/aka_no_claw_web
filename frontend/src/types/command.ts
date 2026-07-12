@@ -160,6 +160,9 @@ export type VoiceClarification = {
   reason_code: string;
   candidates: VoiceClarificationCandidate[];
   fallback: { label: string };
+  // #82 PR3: opaque single-use token echoed back on confirm so a successful
+  // action can become a personalization prototype. Absent = learning off.
+  learning_token?: string;
 };
 
 export type CommandResponse = {
