@@ -204,6 +204,16 @@ export type ActionResponse = {
   actions?: ActionButton[];
 };
 
+// POST /api/command/cancel — cooperative cancel of a running job (#81). The
+// bridge only signals running jobs; a finished job reports its real terminal
+// state instead of pretending it was cancelled.
+export type CancelJobResponse = {
+  status: "ok" | "error";
+  job_status?: JobStatus | string;
+  message?: string;
+  not_found?: boolean;
+};
+
 // Server-side session snapshot (aka_no_claw#32 / web#2). The Mac mini owns this
 // JSON; the console restores it on open and writes it back (debounced) so a page
 // reload / browser close / reconnect doesn't lose recent chat + research output.

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  cancelJob,
   clearSession,
   getChatSettings,
   getModelRoutes,
@@ -180,6 +181,53 @@ describe("clearSession", () => {
       throw new Error("nope");
     });
     const res = await clearSession();
+    expect(res.status).toBe("error");
+  });
+});
+
+describe("cancelJob", () => {
+  it("POSTs the job_id to /api/command/cancel and returns the bridge reply", async () => {
+    let url: string | undefined;
+    let body: unknown;
+    mockFetch(async (u, init) => {
+      url = u;
+      body = JSON.parse(String(init?.body));
+      return jsonResponse({
+        status: "ok",
+        job_status: "interrupted",
+        message: "已要求取消，將於下一個安全點停止。",
+      });
+    });
+    const res = await cancelJob("job-1");
+    expect(url).toBe("/api/command/cancel");
+    expect(body).toEqual({ job_id: "job-1" });
+    expect(res.status).toBe("ok");
+    expect(res.job_status).toBe("interrupted");
+  });
+
+  it("reports the real terminal state of an already-finished job", async () => {
+    mockFetch(async () =>
+      jsonResponse({ status: "ok", job_status: "done", message: "任務已結束，無需取消。" }),
+    );
+    const res = await cancelJob("job-done");
+    expect(res.status).toBe("ok");
+    expect(res.job_status).toBe("done");
+  });
+
+  it("fails soft on non-JSON responses", async () => {
+    mockFetch(async () =>
+      ({ ok: false, status: 500, json: async () => { throw new Error("bad json"); } }) as unknown as Response,
+    );
+    const res = await cancelJob("job-1");
+    expect(res.status).toBe("error");
+    expect(res.message).toBe("HTTP 500");
+  });
+
+  it("fails soft on a network error", async () => {
+    mockFetch(async () => {
+      throw new Error("nope");
+    });
+    const res = await cancelJob("job-1");
     expect(res.status).toBe("error");
   });
 });

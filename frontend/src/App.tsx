@@ -14,6 +14,7 @@ import type {
   WebCommandRequest,
 } from "./types/command";
 import {
+  cancelJob,
   clearSession,
   getChatSettings,
   getModelRoutes,
@@ -140,6 +141,10 @@ export default function App() {
   const [stagedFile, setStagedFile] = useState<{ file: File; previewUrl: string } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const stopPollRef = useRef<(() => void) | null>(null);
+  // Job id backing the in-flight run (stream-stamped or async-started), so the
+  // stop button can ask the bridge to cancel server-side work, not just drop
+  // the local connection/poll loop (#81).
+  const activeJobIdRef = useRef<string | null>(null);
   // Late-bound handle to resumePolling (declared below runStreaming) so a
   // dropped chat stream can hand off to job polling without a dependency cycle.
   const resumePollingRef = useRef<((jobId: string, assistantId: string) => void) | null>(null);
@@ -396,6 +401,7 @@ export default function App() {
               // Long run backed by a recovery job — stamp the message so a
               // reload (activeJobId) or a mid-stream drop can poll it (#81 PR3).
               rd.jobId = event.job_id;
+              activeJobIdRef.current = event.job_id;
               patch(assistantId, { jobId: event.job_id });
             } else if (event.type === "delta") {
               acc += event.text;
@@ -444,6 +450,7 @@ export default function App() {
         // If handed off to polling, resumePolling owns the generating flag.
         if (!rd.redirect && !rd.handedOff) {
           setGenerating(false);
+          activeJobIdRef.current = null;
         }
         abortRef.current = null;
       }
@@ -461,6 +468,7 @@ export default function App() {
   const resumePolling = useCallback(
     async (jobId: string, assistantId: string) => {
       setGenerating(true);
+      activeJobIdRef.current = jobId;
       let cancelled = false;
       stopPollRef.current = () => { cancelled = true; };
       const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -491,7 +499,7 @@ export default function App() {
           }
           if (snap.job_status === "interrupted") {
             patch(assistantId, { generating: false });
-            setNotice("研究任務因系統重啟而中斷，請重新執行 /research。");
+            setNotice(snap.message || "研究任務因系統重啟而中斷，請重新執行 /research。");
             return;
           }
           patch(assistantId, { text: progressText || "⏳ 研究進行中…" });
@@ -502,6 +510,7 @@ export default function App() {
       } finally {
         setGenerating(false);
         stopPollRef.current = null;
+        activeJobIdRef.current = null;
       }
     },
     [patch],
@@ -530,6 +539,7 @@ export default function App() {
           return;
         }
         const jobId = start.job_id;
+        activeJobIdRef.current = jobId;
         patch(assistantId, { jobId, generating: true });
         let consecutiveFailures = 0;
         while (!cancelled) {
@@ -570,6 +580,11 @@ export default function App() {
             });
             return;
           }
+          if (snap.job_status === "interrupted") {
+            patch(assistantId, { generating: false });
+            setNotice(snap.message || "任務已中斷。");
+            return;
+          }
           patch(assistantId, { text: progressText || "⏳ 研究進行中…" });
         }
         patch(assistantId, { generating: false }); // stopped by user
@@ -582,6 +597,7 @@ export default function App() {
       } finally {
         setGenerating(false);
         stopPollRef.current = null;
+        activeJobIdRef.current = null;
       }
     },
     [patch],
@@ -1107,6 +1123,16 @@ export default function App() {
   );
 
   const onStop = useCallback(() => {
+    // Ask the bridge to cancel the server-side job FIRST — aborting the local
+    // stream/poll alone leaves the goal loop / research worker running for
+    // minutes on the Mac mini (#81). Fire-and-forget: the UI stop must not
+    // wait on the network.
+    const jobId = activeJobIdRef.current;
+    if (jobId) {
+      void cancelJob(jobId).then((res) => {
+        if (res.status === "ok" && res.message) setNotice(res.message);
+      });
+    }
     abortRef.current?.abort();
     stopPollRef.current?.();
   }, []);

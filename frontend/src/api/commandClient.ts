@@ -1,6 +1,7 @@
 import type {
   ActionResponse,
   AsyncStartResponse,
+  CancelJobResponse,
   ChatSettings,
   ChatSettingsResponse,
   CommandResponse,
@@ -23,6 +24,7 @@ const STREAM_URL = "/api/command/stream";
 const ASYNC_URL = "/api/command/async";
 const POLL_URL = "/api/command/poll";
 const ACTION_URL = "/api/command/action";
+const CANCEL_URL = "/api/command/cancel";
 const MUSIC_URL = "/api/command/music";
 const NOW_PLAYING_URL = "/api/command/music/now";
 const BLUETOOTH_URL = "/api/command/bluetooth";
@@ -250,6 +252,26 @@ export async function runAction(
     return (await res.json()) as ActionResponse;
   } catch {
     return { status: "error", message: `HTTP ${res.status}` };
+  }
+}
+
+// Cooperative cancel of a running job (#81): the bridge sets the job's cancel
+// flag and the worker stops at its next safe point (per-search / heartbeat /
+// stage boundary). Fail-soft — the stop button must never throw.
+export async function cancelJob(jobId: string): Promise<CancelJobResponse> {
+  try {
+    const res = await fetch(CANCEL_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ job_id: jobId }),
+    });
+    try {
+      return (await res.json()) as CancelJobResponse;
+    } catch {
+      return { status: "error", message: `HTTP ${res.status}` };
+    }
+  } catch (err) {
+    return { status: "error", message: String(err) };
   }
 }
 
