@@ -53,6 +53,7 @@ const mockScheduleCommand = vi.mocked(client.runScheduleHomeCommand);
 const mockScheduleAction = vi.mocked(client.runScheduleHomeAction);
 const mockWorkflowCommand = vi.mocked(client.runWorkflowCommand);
 const mockMusicCommand = vi.mocked(client.runMusicCommand);
+const mockIrCommand = vi.mocked(client.runIrCommand);
 
 function emptySession() {
   return { status: "ok" as const, session: emptySnapshot() };
@@ -107,6 +108,7 @@ beforeEach(() => {
   mockScheduleAction.mockReset();
   mockWorkflowCommand.mockReset();
   mockMusicCommand.mockReset();
+  mockIrCommand.mockReset();
 });
 
 afterEach(() => {
@@ -253,6 +255,23 @@ describe("App — LifeActionPanel schedule/workflow list entry points (web#9)", 
     // Switch to 生活 mode by clicking its mode button.
     fireEvent.click(screen.getByText("生活"));
   }
+
+  it("shows a clear pending message while a light command is being sent", async () => {
+    let finish: ((value: { status: "ok"; message: string }) => void) | undefined;
+    mockIrCommand.mockImplementation(
+      () => new Promise((resolve) => { finish = resolve; }),
+    );
+
+    await renderLifeMode();
+    fireEvent.click(screen.getByText("🏠 家電"));
+    fireEvent.click(screen.getByText(/燈（開關）/));
+
+    expect(screen.getByText("正在傳送家電指令…")).toBeDefined();
+    expect(mockIrCommand).toHaveBeenCalledWith("/ir send ceiling_light power");
+
+    finish?.({ status: "ok", message: "已送出 IR：ceiling_light / power" });
+    await waitFor(() => screen.getByText(/已送出 IR：ceiling_light/));
+  });
 
   it("📅 排程列表 button calls runScheduleHomeCommand('')", async () => {
     mockScheduleCommand.mockResolvedValue({

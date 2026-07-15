@@ -801,7 +801,7 @@ export default function App() {
     const assistantId = uid();
     setMessages((prev) => [
       ...prev,
-      { id: assistantId, role: "assistant", text: "", modeLabel: MODE_LABELS.life, generating: true },
+      { id: assistantId, role: "assistant", text: "正在掃描藍牙裝置…", modeLabel: MODE_LABELS.life, generating: true },
     ]);
     void runLifeCard(assistantId, () => runBluetoothScan(), BLUETOOTH_JOB_ID);
   }, [generating, runLifeCard]);
@@ -812,7 +812,7 @@ export default function App() {
     const assistantId = uid();
     setMessages((prev) => [
       ...prev,
-      { id: assistantId, role: "assistant", text: "", modeLabel: MODE_LABELS.life, generating: true },
+      { id: assistantId, role: "assistant", text: "正在傳送家電指令…", modeLabel: MODE_LABELS.life, generating: true },
     ]);
     void runLifeCard(
       assistantId,
@@ -827,7 +827,7 @@ export default function App() {
     const assistantId = uid();
     setMessages((prev) => [
       ...prev,
-      { id: assistantId, role: "assistant", text: "", modeLabel: MODE_LABELS.life, generating: true },
+      { id: assistantId, role: "assistant", text: "正在傳送家電指令…", modeLabel: MODE_LABELS.life, generating: true },
     ]);
     void runLifeCard(
       assistantId,
@@ -842,7 +842,7 @@ export default function App() {
     const assistantId = uid();
     setMessages((prev) => [
       ...prev,
-      { id: assistantId, role: "assistant", text: "", modeLabel: MODE_LABELS.life, generating: true },
+      { id: assistantId, role: "assistant", text: "正在傳送家電指令…", modeLabel: MODE_LABELS.life, generating: true },
     ]);
     void runLifeCard(
       assistantId,
@@ -856,7 +856,7 @@ export default function App() {
     const assistantId = uid();
     setMessages((prev) => [
       ...prev,
-      { id: assistantId, role: "assistant", text: "", modeLabel: MODE_LABELS.life, generating: true },
+      { id: assistantId, role: "assistant", text: "正在傳送家電指令…", modeLabel: MODE_LABELS.life, generating: true },
     ]);
     void runLifeCard(
       assistantId,
