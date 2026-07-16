@@ -10,6 +10,15 @@ Contract / product spec: [`docs/LOCAL_MOBILE_CONSOLE_MVP.md`](docs/LOCAL_MOBILE_
 Before changing the web UI, read the contract above first. Mobile layout rules in
 that document are part of the implementation boundary, not optional polish.
 
+## Architecture plans
+
+- [`docs/AGENT_CONTROL_PLANE_IMPLEMENTATION_PLAN.md`](docs/AGENT_CONTROL_PLANE_IMPLEMENTATION_PLAN.md)
+  is the detailed, phased plan for cursor-replayable session events, multiple
+  run projection, the mobile Task Sheet, prompt queue, approval cards, context
+  compaction controls, and incremental `App.tsx` decomposition (issue #12).
+- [`docs/README.md`](docs/README.md) maps the Web plan to its four backend
+  implementation plans in `jojojen/aka_no_claw`.
+
 ## Modes
 
 - **Chat** — pure chat (Phase 1, no tool calls). Pick the backend: `本地模型`
