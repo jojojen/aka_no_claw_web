@@ -237,6 +237,7 @@ describe("App — job reconnect after reload (web#6)", () => {
     await waitFor(() =>
       expect(mockSave).toHaveBeenCalledWith(
         expect.objectContaining({ active_job_id: RESEARCH_JOB_ID }),
+        expect.any(String),
       ),
     );
   });

@@ -23,11 +23,16 @@ vi.mock("./api/commandClient", () => ({
   loadPendingApprovals: vi.fn().mockResolvedValue([]),
   saveSession: vi.fn().mockResolvedValue({ status: "ok" }),
   clearSession: vi.fn(),
+  getContextStatus: vi.fn().mockResolvedValue({
+    status: "ok", session_id: "test-session", estimated_tokens: 0,
+    context_window: 32768, reserve_tokens: 4096, usage_percent: 0, checkpoint: null,
+  }),
   sendCommand: vi.fn(),
   streamCommand: vi.fn(),
   reportVoiceDirectRejection: vi.fn(),
   startAsyncCommand: vi.fn(),
-  pollJob: vi.fn(),
+  pollJob: vi.fn().mockResolvedValue({ job_status: "running", progress: [] }),
+  cancelJob: vi.fn().mockResolvedValue({ status: "ok", job_status: "interrupted" }),
   runAction: vi.fn(),
   runMusicAction: vi.fn(),
   runMusicCommand: vi.fn(),
@@ -54,6 +59,9 @@ const mockSave = vi.mocked(client.saveSession);
 const mockClear = vi.mocked(client.clearSession);
 const mockRestart = vi.mocked(client.restartAll);
 const mockNowPlaying = vi.mocked(client.getNowPlaying);
+const mockContextStatus = vi.mocked(client.getContextStatus);
+const mockCancelJob = vi.mocked(client.cancelJob);
+const mockPollJob = vi.mocked(client.pollJob);
 
 function sessionWith(text: string) {
   return {
@@ -67,6 +75,12 @@ beforeEach(() => {
   mockSave.mockResolvedValue({ status: "ok" });
   mockClear.mockResolvedValue({ status: "ok" });
   mockRestart.mockResolvedValue({ status: "ok", message: "已排程重啟龍蝦" });
+  mockContextStatus.mockResolvedValue({
+    status: "ok", session_id: "test-session", estimated_tokens: 0,
+    context_window: 32768, reserve_tokens: 4096, usage_percent: 0, checkpoint: null,
+  });
+  mockCancelJob.mockResolvedValue({ status: "ok", job_status: "interrupted" });
+  mockPollJob.mockResolvedValue({ job_status: "running", progress: [] });
 });
 
 afterEach(() => {
@@ -74,6 +88,11 @@ afterEach(() => {
 });
 
 describe("App — clear memory (#2)", () => {
+  it("loads the same browser session identity used by commands", async () => {
+    render(<App />);
+    await waitFor(() => expect(mockLoad).toHaveBeenCalledWith(expect.any(String)));
+  });
+
   it("shows confirm buttons when 清除記憶 is clicked", async () => {
     render(<App />);
     await waitFor(() => screen.getByText("hello clear test"));
@@ -107,6 +126,8 @@ describe("App — clear memory (#2)", () => {
     fireEvent.click(screen.getByText("清除記憶"));
     fireEvent.click(screen.getByText("確定清除"));
     await waitFor(() => expect(screen.queryByText("hello clear test")).toBeNull());
+    expect(mockClear).toHaveBeenCalledWith(expect.any(String));
+    await waitFor(() => expect(mockContextStatus).toHaveBeenCalled());
   });
 
   it("does not re-save an empty snapshot after successful clear", async () => {
@@ -124,6 +145,27 @@ describe("App — clear memory (#2)", () => {
                   (snap as { messages: unknown[] }).messages.length === 0,
     );
     expect(emptySaves).toHaveLength(0);
+  });
+
+  it("stops a restored active job before clearing its session", async () => {
+    mockLoad.mockResolvedValueOnce({
+      status: "ok",
+      session: {
+        ...emptySnapshot(),
+        messages: [{ id: "research", role: "assistant", text: "researching", jobId: "job-live" }],
+        active_job_id: "job-live",
+      },
+    });
+    render(<App />);
+    await waitFor(() => screen.getByText("researching"));
+    await waitFor(() => expect(mockPollJob).toHaveBeenCalledWith("job-live"));
+    await waitFor(() => screen.getByText("停止"));
+
+    fireEvent.click(screen.getByText("清除記憶"));
+    fireEvent.click(screen.getByText("確定清除"));
+
+    await waitFor(() => expect(mockCancelJob).toHaveBeenCalledWith("job-live"));
+    await waitFor(() => expect(mockClear).toHaveBeenCalled());
   });
 
   it("shows confirm buttons when 重啟龍蝦 is clicked", async () => {

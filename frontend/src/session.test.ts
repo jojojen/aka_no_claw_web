@@ -184,6 +184,21 @@ describe("buildChatHistory — inline chat context (#44)", () => {
     ]);
   });
 
+  it("keeps restored chat turns by durable mode when presentation labels are absent", () => {
+    const restored = fromSnapshot({
+      messages: [
+        { id: "1", role: "user", text: "離開前的問題", mode: "chat" },
+        { id: "2", role: "assistant", text: "離開前的回答", mode: "chat" },
+        { id: "3", role: "assistant", text: "其他模式", mode: "translation" },
+      ],
+    });
+
+    expect(buildChatHistory(restored.messages)).toEqual([
+      { role: "user", content: "離開前的問題" },
+      { role: "assistant", content: "離開前的回答" },
+    ]);
+  });
+
   it("excludes non-chat modes, empty text, and in-flight bubbles", () => {
     const messages: Message[] = [
       { id: "1", role: "user", text: "翻譯這個", modeLabel: "翻譯" },

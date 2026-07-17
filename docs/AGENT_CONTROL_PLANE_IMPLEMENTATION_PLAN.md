@@ -447,6 +447,15 @@ Nevertheless:
 
 Document destructive semantics before changing the existing clear button.
 
+Current semantics: `清除記憶` clears the selected browser session's visible
+conversation, run projection, display preferences, context checkpoint, and
+prompt queue. The durable journal retains only a clear boundary for event-safe
+recovery; events before that boundary are excluded from context usage,
+compaction, and future model input. `清除摘要記憶` remains the narrower action
+that removes only the derived checkpoint. The client aborts its current
+stream/poll and requests cancellation before clearing; late events from a run
+accepted before the clear boundary stay hidden from rebuilt state.
+
 ## 17. App Decomposition
 
 Refactor in behavior-preserving slices.
@@ -524,6 +533,11 @@ Use one shared decoder for live and replayed event envelopes.
 - cursor recovery;
 - live delta overlay;
 - retain legacy adapter fallback.
+
+Current compatibility behavior loads the explicit browser `session_id` on
+bootstrap. Chat-routed `/research` receives a durable `job_id`; leaving the
+page restores the same assistant card and hands it to job polling instead of
+loading `web-default` or losing the run with the NDJSON connection.
 
 ### PR W4 — Run Manager and Task Sheet
 
@@ -731,10 +745,11 @@ the authority for existing stream/poll/action surfaces.
 
 ### W5 — queue
 
-- [ ] W5.1 implement queue client/hook.
-- [ ] W5.2 keep composer enabled and add next/interjection intent.
-- [ ] W5.3 add queue strip/mutations/reconnect.
-- [ ] W5.4 prove capture isolation.
+- [x] W5.1 implement queue client/hook.
+- [x] W5.2 keep composer enabled and add next/interjection intent.
+- [x] W5.3 add queue strip/mutations/reconnect, including read-only draining
+  state and explicit interrupted retry/cancel recovery.
+- [x] W5.4 prove capture isolation.
 
 ### W6 — approval
 

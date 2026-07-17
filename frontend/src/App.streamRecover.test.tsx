@@ -126,6 +126,7 @@ describe("App — chat stream drop recovers via job poll (#81 PR3)", () => {
     await waitFor(() =>
       expect(mockSave).toHaveBeenCalledWith(
         expect.objectContaining({ active_job_id: STREAM_JOB_ID }),
+        expect.any(String),
       ),
     );
   });

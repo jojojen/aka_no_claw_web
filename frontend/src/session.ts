@@ -23,11 +23,11 @@ const SESSION_ID_KEY = "akanoclaw.web.session_id";
 export const CONVERSATION_ID = "default";
 // Only chat bubbles carry this label; history must never leak other modes.
 const CHAT_MODE_LABEL = "Chat";
-const DEFAULT_HISTORY_TURNS = 10;
+const DEFAULT_HISTORY_TURNS = 20;
 // Per-turn hard cap, and a cumulative budget across kept turns so a few long
 // turns can't bloat the prompt (mirrors the bridge's MAX_HISTORY_TOTAL_CHARS).
-const DEFAULT_HISTORY_CHARS = 4000;
-const DEFAULT_HISTORY_TOTAL_CHARS = 4000;
+const DEFAULT_HISTORY_CHARS = 6000;
+const DEFAULT_HISTORY_TOTAL_CHARS = 16000;
 
 export function getOrCreateSessionId(): string {
   try {
@@ -56,7 +56,7 @@ export function buildChatHistory(
   const maxTotalChars = opts.maxTotalChars ?? DEFAULT_HISTORY_TOTAL_CHARS;
   const valid: ChatHistoryItem[] = [];
   for (const m of messages) {
-    if (m.modeLabel !== CHAT_MODE_LABEL) continue;
+    if (m.mode !== "chat" && m.modeLabel !== CHAT_MODE_LABEL) continue;
     if (m.generating) continue;
     if (m.role !== "user" && m.role !== "assistant") continue;
     const content = m.text.trim();
@@ -158,6 +158,7 @@ function sanitizeMessage(raw: unknown): Message | null {
     text: typeof m.text === "string" ? m.text : "",
     generating: false,
   };
+  if (oneOf(m.mode, MODES)) msg.mode = m.mode as Mode;
   if (typeof m.modeLabel === "string") msg.modeLabel = m.modeLabel;
   if (oneOf(m.status, STATUSES)) msg.status = m.status as ResponseStatus;
   if (typeof m.jobId === "string") msg.jobId = m.jobId;

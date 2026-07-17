@@ -51,6 +51,7 @@ import {
   resolveApproval,
   restartAll,
   reorderPromptQueue,
+  retryPromptQueueEntry,
   streamCommand,
   transcribeAudio,
 } from "./api/commandClient";
@@ -192,7 +193,7 @@ export default function App() {
   const saverRef = useRef<ReturnType<typeof debounce<[SessionSnapshot]>>>();
   if (!saverRef.current) {
     saverRef.current = debounce((snap: SessionSnapshot) => {
-      void saveSession(snap);
+      void saveSession(snap, getOrCreateSessionId());
     }, 800);
   }
 
@@ -201,6 +202,11 @@ export default function App() {
     if (scheduleActive) return "排程編輯中——輸入內容會送到排程器，按 ✕ 退出";
     return placeholderFor(mode, investmentSubmode, lifeCategory);
   }, [workflowActive, scheduleActive, mode, investmentSubmode, lifeCategory]);
+
+  const queuePollKey = useMemo(
+    () => queuedPrompts.map((entry) => `${entry.prompt_id}:${entry.version}:${entry.status}`).join("|"),
+    [queuedPrompts],
+  );
 
   const refreshModelRoutes = useCallback(async () => {
     const res = await getModelRoutes();
@@ -219,7 +225,7 @@ export default function App() {
     void (async () => {
       const sessionId = getOrCreateSessionId();
       const [res, approvalRestore, queueRestore] = await Promise.all([
-        loadSession(),
+        loadSession(sessionId),
         loadPendingApprovals(sessionId)
           .then((approvals) => ({ approvals, failed: false }))
           .catch(() => ({ approvals: [] as ApprovalView[], failed: true })),
@@ -381,6 +387,35 @@ export default function App() {
   // Flush any pending write on unmount so a quick close doesn't drop the last
   // snapshot.
   useEffect(() => () => saverRef.current?.flush(), []);
+
+  // Queue work is executed by the bridge after the foreground run finishes.
+  // Keep reconciling its durable state so a claimed/completed prompt cannot
+  // leave a stale editable card on screen.  When an entry completes, reload
+  // the authoritative event projection so its user/assistant messages appear.
+  useEffect(() => {
+    if (!restored || !queuedPrompts.some((entry) => entry.status !== "interrupted")) return;
+    let alive = true;
+    const refresh = async () => {
+      const result = await restorePromptQueue(getOrCreateSessionId()).catch(
+        () => ({ status: "error" as const, entries: [] as QueuedPrompt[] }),
+      );
+      if (!alive || result.status !== "ok") return;
+      const next = result.entries ?? [];
+      const nextIds = new Set(next.map((entry) => entry.prompt_id));
+      const completed = queuedPrompts.some((entry) => !nextIds.has(entry.prompt_id));
+      setQueuedPrompts(next);
+      if (!completed) return;
+      const session = await loadSession(getOrCreateSessionId());
+      if (alive && session.status === "ok") {
+        setMessages(fromSnapshot(session.session).messages);
+      }
+    };
+    const id = window.setInterval(() => void refresh(), 2000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [restored, queuePollKey]);
 
   // 生活 mode: poll the now-playing song so the strip reflects auto-advancing
   // continuous playback. Only runs while 生活 is open to avoid idle traffic.
@@ -1138,7 +1173,9 @@ export default function App() {
   const onCancelQueuedPrompt = useCallback(async (entry: QueuedPrompt) => {
     const result = await cancelPromptQueueEntry(entry);
     if (result.status !== "ok") {
-      setNotice(result.message ?? "取消待送出訊息失敗。 ");
+      const refreshed = await restorePromptQueue(getOrCreateSessionId());
+      setQueuedPrompts(refreshed.entries ?? []);
+      setNotice(result.status === "conflict" ? null : result.message ?? "取消待送出訊息失敗。 ");
       return;
     }
     setQueuedPrompts(result.entries ?? []);
@@ -1147,23 +1184,39 @@ export default function App() {
   const onEditQueuedPrompt = useCallback(async (entry: QueuedPrompt, text: string) => {
     const result = await editPromptQueueEntry(entry, text);
     if (result.status !== "ok") {
-      setNotice(result.message ?? "編輯待送出訊息失敗。 ");
+      const refreshed = await restorePromptQueue(getOrCreateSessionId());
+      setQueuedPrompts(refreshed.entries ?? []);
+      setNotice(result.status === "conflict" ? null : result.message ?? "編輯待送出訊息失敗。 ");
+      return;
+    }
+    setQueuedPrompts(result.entries ?? []);
+  }, []);
+
+  const onRetryQueuedPrompt = useCallback(async (entry: QueuedPrompt) => {
+    const result = await retryPromptQueueEntry(entry);
+    if (result.status !== "ok") {
+      const refreshed = await restorePromptQueue(getOrCreateSessionId());
+      setQueuedPrompts(refreshed.entries ?? []);
+      setNotice(result.status === "conflict" ? null : result.message ?? "重試待送出訊息失敗。 ");
       return;
     }
     setQueuedPrompts(result.entries ?? []);
   }, []);
 
   const onMoveQueuedPrompt = useCallback(async (promptId: string, direction: -1 | 1) => {
-    const index = queuedPrompts.findIndex((entry) => entry.prompt_id === promptId);
+    const movable = queuedPrompts.filter(
+      (entry) => entry.status === "queued" && entry.intent === "next_turn",
+    );
+    const index = movable.findIndex((entry) => entry.prompt_id === promptId);
     const next = index + direction;
-    if (index < 0 || next < 0 || next >= queuedPrompts.length) return;
-    const reordered = [...queuedPrompts];
+    if (index < 0 || next < 0 || next >= movable.length) return;
+    const reordered = [...movable];
     [reordered[index], reordered[next]] = [reordered[next], reordered[index]];
     const result = await reorderPromptQueue(reordered);
     if (result.status !== "ok") {
-      setNotice(result.message ?? "調整待送出順序失敗，已重新載入。 ");
       const refreshed = await restorePromptQueue(getOrCreateSessionId());
       setQueuedPrompts(refreshed.entries ?? []);
+      setNotice(result.status === "conflict" ? null : result.message ?? "調整待送出順序失敗，已重新載入。 ");
       return;
     }
     setQueuedPrompts(result.entries ?? []);
@@ -1418,15 +1471,29 @@ export default function App() {
   // restore it, contradicting the blank screen the user just saw).
   const onClearMemory = useCallback(async () => {
     setConfirmClear(false);
-    const res = await clearSession();
+    const activeJobId = activeJobIdRef.current;
+    abortRef.current?.abort();
+    stopPollRef.current?.();
+    stopPollRef.current = null;
+    activeJobIdRef.current = null;
+    setGenerating(false);
+    if (activeJobId) await cancelJob(activeJobId);
+    const res = await clearSession(getOrCreateSessionId());
     if (res.status !== "ok") {
       setNotice(`清除記憶失敗：${res.message ?? "未知錯誤"}`);
       return;
     }
     saverRef.current?.cancel();
     setMessages([]);
-    setNotice(null);
-  }, []);
+    setQueuedPrompts([]);
+    setWorkflowActive(false);
+    workflowMsgIdRef.current = null;
+    setScheduleActive(false);
+    scheduleMsgIdRef.current = null;
+    setContextStatus(null);
+    await refreshContextStatus();
+    setNotice("已完整清除這個工作階段的對話、摘要與待送出訊息。");
+  }, [refreshContextStatus]);
 
   const onRestartAll = useCallback(async () => {
     setConfirmRestart(false);
@@ -1742,6 +1809,7 @@ export default function App() {
         entries={queuedPrompts}
         onCancel={onCancelQueuedPrompt}
         onEdit={onEditQueuedPrompt}
+        onRetry={onRetryQueuedPrompt}
         onMove={onMoveQueuedPrompt}
       />
       <InputBar

@@ -15,7 +15,7 @@ describe("PromptQueueStrip", () => {
     const onCancel = vi.fn();
     const onEdit = vi.fn();
     const onMove = vi.fn();
-    render(<PromptQueueStrip entries={[entry, { ...entry, prompt_id: "p-2", position: 1, text: "第二件事" }]} onCancel={onCancel} onEdit={onEdit} onMove={onMove} />);
+    render(<PromptQueueStrip entries={[entry, { ...entry, prompt_id: "p-2", position: 1, text: "第二件事" }]} onCancel={onCancel} onEdit={onEdit} onRetry={vi.fn()} onMove={onMove} />);
 
     fireEvent.click(screen.getAllByRole("button", { name: "編輯待送出訊息" })[0]);
     fireEvent.change(screen.getByRole("textbox", { name: "編輯待送出訊息內容" }), { target: { value: "改過的第一件事" } });
@@ -26,5 +26,26 @@ describe("PromptQueueStrip", () => {
     expect(onMove).toHaveBeenCalledWith("p-1", 1);
     fireEvent.click(screen.getAllByRole("button", { name: "取消待送出訊息" })[1]);
     expect(onCancel).toHaveBeenCalledWith(expect.objectContaining({ prompt_id: "p-2" }));
+  });
+
+  it("labels a claimed prompt as processing and hides mutation controls", () => {
+    render(<PromptQueueStrip entries={[{ ...entry, status: "draining" }]} onCancel={vi.fn()} onEdit={vi.fn()} onRetry={vi.fn()} onMove={vi.fn()} />);
+
+    expect(screen.getByText("處理中：先做第一件事")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "編輯待送出訊息" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "取消待送出訊息" })).toBeNull();
+  });
+
+  it("offers explicit retry or cancel after a restart interrupted a prompt", () => {
+    const interrupted = { ...entry, status: "interrupted" as const };
+    const onRetry = vi.fn();
+    const onCancel = vi.fn();
+    render(<PromptQueueStrip entries={[interrupted]} onCancel={onCancel} onEdit={vi.fn()} onRetry={onRetry} onMove={vi.fn()} />);
+
+    expect(screen.getByText("執行中斷：先做第一件事")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "重試中斷訊息" }));
+    expect(onRetry).toHaveBeenCalledWith(interrupted);
+    fireEvent.click(screen.getByRole("button", { name: "取消中斷訊息" }));
+    expect(onCancel).toHaveBeenCalledWith(interrupted);
   });
 });

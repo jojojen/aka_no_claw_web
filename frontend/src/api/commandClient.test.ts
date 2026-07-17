@@ -88,6 +88,18 @@ describe("loadSession", () => {
     expect(res.session.messages).toHaveLength(1);
   });
 
+  it("can load the authoritative journal for one browser session", async () => {
+    const calls: string[] = [];
+    mockFetch(async (url) => {
+      calls.push(String(url));
+      return jsonResponse({ status: "ok", session: emptySnapshot() });
+    });
+
+    await loadSession("browser-session");
+
+    expect(calls).toEqual(["/api/command/session?session_id=browser-session"]);
+  });
+
   it("fails soft to an empty session on HTTP error", async () => {
     mockFetch(async () => jsonResponse({}, false, 500));
     const res = await loadSession();
@@ -145,6 +157,18 @@ describe("saveSession", () => {
     expect(seen.url).toBe("/api/command/session");
     expect(seen.method).toBe("POST");
     expect(JSON.parse(seen.body!).mode).toBe("chat");
+  });
+
+  it("saves preferences to the selected browser session", async () => {
+    const calls: string[] = [];
+    mockFetch(async (url) => {
+      calls.push(String(url));
+      return jsonResponse({ status: "ok", updated_at: 123 });
+    });
+
+    await saveSession(emptySnapshot(), "browser-session");
+
+    expect(calls).toEqual(["/api/command/session?session_id=browser-session"]);
   });
 
   it("returns an error instead of throwing when the save fails mid-chat", async () => {
@@ -266,6 +290,18 @@ describe("clearSession", () => {
     const res = await clearSession();
     expect(method).toBe("DELETE");
     expect(res.status).toBe("ok");
+  });
+
+  it("targets the current browser session", async () => {
+    const calls: string[] = [];
+    mockFetch(async (url) => {
+      calls.push(String(url));
+      return jsonResponse({ status: "ok" });
+    });
+
+    await clearSession("browser-session");
+
+    expect(calls).toEqual(["/api/command/session?session_id=browser-session"]);
   });
 
   it("fails soft on a network error", async () => {

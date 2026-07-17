@@ -374,6 +374,18 @@ export async function editPromptQueueEntry(entry: QueuedPrompt, text: string): P
   }
 }
 
+export async function retryPromptQueueEntry(entry: QueuedPrompt): Promise<PromptQueueResponse> {
+  try {
+    const res = await fetch(`${QUEUE_URL}/${encodeURIComponent(entry.prompt_id)}/retry`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: entry.session_id, expected_version: entry.version }),
+    });
+    return (await res.json()) as PromptQueueResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
 export async function reorderPromptQueue(entries: QueuedPrompt[]): Promise<PromptQueueResponse> {
   if (!entries.length) return { status: "ok", entries: [] };
   try {
@@ -686,9 +698,12 @@ export async function runScheduleHomeAction(callbackData: string): Promise<Actio
 // GET the latest saved snapshot. A network/HTTP/JSON failure degrades to an
 // empty session marked with status "error" so the caller can show an in-app
 // notice and still start from a blank, usable console (never a browser alert).
-export async function loadSession(): Promise<SessionLoadResponse> {
+export async function loadSession(sessionId?: string): Promise<SessionLoadResponse> {
   try {
-    const res = await fetch(SESSION_URL);
+    const url = sessionId
+      ? `${SESSION_URL}?session_id=${encodeURIComponent(sessionId)}`
+      : SESSION_URL;
+    const res = await fetch(url);
     if (!res.ok) {
       return { status: "error", session: emptySnapshot(), message: `HTTP ${res.status}` };
     }
@@ -707,9 +722,13 @@ export async function loadSession(): Promise<SessionLoadResponse> {
 // state and we just report the failure for an optional non-blocking notice.
 export async function saveSession(
   snapshot: SessionSnapshot,
+  sessionId?: string,
 ): Promise<SessionSaveResponse> {
   try {
-    const res = await fetch(SESSION_URL, {
+    const url = sessionId
+      ? `${SESSION_URL}?session_id=${encodeURIComponent(sessionId)}`
+      : SESSION_URL;
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(snapshot),
@@ -722,9 +741,12 @@ export async function saveSession(
 }
 
 // DELETE the saved snapshot (clear memory). Idempotent on the backend.
-export async function clearSession(): Promise<SessionClearResponse> {
+export async function clearSession(sessionId?: string): Promise<SessionClearResponse> {
   try {
-    const res = await fetch(SESSION_URL, { method: "DELETE" });
+    const url = sessionId
+      ? `${SESSION_URL}?session_id=${encodeURIComponent(sessionId)}`
+      : SESSION_URL;
+    const res = await fetch(url, { method: "DELETE" });
     const data = (await res.json()) as SessionClearResponse;
     return data;
   } catch (err) {

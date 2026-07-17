@@ -316,7 +316,7 @@ export type QueuedPrompt = {
   created_at: number;
   updated_at: number;
   expires_at: number;
-  status: "queued" | "draining";
+  status: "queued" | "draining" | "interrupted";
   target_run_id?: string | null;
   started_run_id?: string | null;
 };
@@ -405,6 +405,10 @@ export type Message = {
   id: string;
   role: MessageRole;
   text: string;
+  // Durable backend classification. Unlike modeLabel (presentation text), this
+  // survives session projection and decides whether a restored turn belongs in
+  // Chat model context.
+  mode?: Mode;
   modeLabel?: string;
   status?: ResponseStatus;
   generating?: boolean;
