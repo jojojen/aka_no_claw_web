@@ -5,6 +5,7 @@ import type {
   ChatBackend,
   ChatSettings,
   ChatHistoryItem,
+  ContextStatusResponse,
   CommandAction,
   Message,
   ModelRoute,
@@ -20,8 +21,11 @@ import {
   cancelJob,
   cancelPromptQueueEntry,
   clearSession,
+  clearContextCheckpoint,
+  compactContext,
   confirmVoiceAction,
   getChatSettings,
+  getContextStatus,
   loadPendingApprovals,
   getModelRoutes,
   getNowPlaying,
@@ -51,6 +55,7 @@ import {
   transcribeAudio,
 } from "./api/commandClient";
 import * as queueClient from "./api/commandClient";
+import * as contextClient from "./api/commandClient";
 import type { ActionResponse } from "./types/command";
 import {
   buildChatHistory,
@@ -70,6 +75,7 @@ import { InputBar } from "./components/InputBar";
 import { CaptureModeChip } from "./components/CaptureModeChip";
 import { ChatSettingsModal } from "./components/ChatSettingsModal";
 import { PromptQueueStrip } from "./components/PromptQueueStrip";
+import { ContextPanel } from "./components/ContextPanel";
 import type { LifeCategory } from "./components/LifeActionPanel";
 
 const SOURCE = "aka_no_claw_web";
@@ -80,6 +86,13 @@ async function restorePromptQueue(sessionId: string) {
   // failed session restore.
   if (!("loadPromptQueue" in queueClient)) return { status: "disabled" as const, entries: [] as QueuedPrompt[] };
   return queueClient.loadPromptQueue(sessionId);
+}
+
+async function restoreContextStatus(sessionId: string): Promise<ContextStatusResponse | null> {
+  // Keep compatibility with rolling bridge deployments and focused legacy
+  // tests that intentionally mock only the pre-context client surface.
+  if (!("getContextStatus" in contextClient)) return null;
+  return contextClient.getContextStatus(sessionId);
 }
 
 // Sentinel jobIds marking 生活-mode and workflow cards, so their action buttons
@@ -155,6 +168,8 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [chatSettings, setChatSettings] = useState<ChatSettings | null>(null);
+  const [contextStatus, setContextStatus] = useState<ContextStatusResponse | null>(null);
+  const [contextBusy, setContextBusy] = useState(false);
   const [nowPlaying, setNowPlaying] = useState<string | null>(null);
   const [workflowActive, setWorkflowActive] = useState(false);
   const workflowMsgIdRef = useRef<string | null>(null);
@@ -311,11 +326,43 @@ export default function App() {
       if (settingsRes.status === "ok" && settingsRes.settings) {
         setChatSettings(settingsRes.settings);
       }
+      const context = await restoreContextStatus(getOrCreateSessionId());
+      if (alive && context?.status === "ok") setContextStatus(context);
     })();
     return () => {
       alive = false;
     };
   }, []);
+
+  const refreshContextStatus = useCallback(async () => {
+    const status = await getContextStatus(getOrCreateSessionId());
+    if (status.status === "ok") setContextStatus(status);
+    return status;
+  }, []);
+
+  const onCompactContext = useCallback(async () => {
+    setContextBusy(true);
+    const result = await compactContext(getOrCreateSessionId());
+    setContextBusy(false);
+    if (result.status !== "ok") {
+      setNotice(result.message ?? "無法壓縮對話內容。");
+      return;
+    }
+    await refreshContextStatus();
+    setNotice("已建立可追溯摘要；完整聊天紀錄仍保留。");
+  }, [refreshContextStatus]);
+
+  const onClearContextCheckpoint = useCallback(async () => {
+    setContextBusy(true);
+    const result = await clearContextCheckpoint(getOrCreateSessionId());
+    setContextBusy(false);
+    if (result.status !== "ok") {
+      setNotice(result.message ?? "無法清除摘要記憶。");
+      return;
+    }
+    await refreshContextStatus();
+    setNotice("已清除摘要記憶；完整聊天紀錄未刪除。");
+  }, [refreshContextStatus]);
 
   useEffect(() => {
     if (!restored || restoredChatBackendExplicit || !chatSettings) return;
@@ -1597,6 +1644,13 @@ export default function App() {
           </button>
         </div>
       )}
+
+      {mode === "chat" && <ContextPanel
+        status={contextStatus}
+        busy={contextBusy}
+        onCompact={onCompactContext}
+        onClear={onClearContextCheckpoint}
+      />}
 
       <div className="border-b border-muted px-3 py-3">
         <ModeToggle mode={mode} onChange={setMode} />

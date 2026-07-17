@@ -4,6 +4,9 @@ import {
   clearSession,
   confirmVoiceAction,
   getChatSettings,
+  getContextStatus,
+  compactContext,
+  clearContextCheckpoint,
   getModelRoutes,
   getNowPlaying,
   loadSession,
@@ -107,6 +110,24 @@ describe("loadSession", () => {
     const res = await loadSession();
     expect(res.status).toBe("error");
     expect(res.session).toEqual(emptySnapshot());
+  });
+});
+
+describe("context checkpoint client", () => {
+  it("uses distinct status, compact, and clear routes", async () => {
+    const calls: Array<{ url: string; method?: string }> = [];
+    mockFetch(async (url, init) => {
+      calls.push({ url: String(url), method: init?.method });
+      return jsonResponse({ status: "ok", usage_percent: 20, checkpoint: null });
+    });
+    await getContextStatus("s1");
+    await compactContext("s1");
+    await clearContextCheckpoint("s1");
+    expect(calls).toEqual([
+      { url: "/api/command/context?session_id=s1", method: undefined },
+      { url: "/api/command/context/compact", method: "POST" },
+      { url: "/api/command/context/checkpoint?session_id=s1", method: "DELETE" },
+    ]);
   });
 });
 

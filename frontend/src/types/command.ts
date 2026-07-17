@@ -330,6 +330,28 @@ export type PromptQueueResponse = {
   entry?: QueuedPrompt;
 };
 
+export type ContextCheckpointView = {
+  checkpoint_id: string;
+  source_seq_start: number;
+  source_seq_end: number;
+  created_at: number;
+  summary_preview: string;
+  summary?: string;
+  validation_status: string;
+};
+
+export type ContextStatusResponse = {
+  status: "ok" | "error";
+  session_id?: string;
+  estimated_tokens?: number;
+  context_window?: number;
+  reserve_tokens?: number;
+  usage_percent?: number;
+  checkpoint?: ContextCheckpointView | null;
+  manual_compaction_allowed?: boolean;
+  message?: string;
+};
+
 // POST /api/command/cancel — cooperative cancel of a running job (#81). The
 // bridge only signals running jobs; a finished job reports its real terminal
 // state instead of pretending it was cancelled.

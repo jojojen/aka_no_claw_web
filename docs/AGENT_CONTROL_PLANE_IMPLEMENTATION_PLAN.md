@@ -1,7 +1,7 @@
 # Aka No Claw Web Agent Control Plane Implementation Plan
 
 Last reviewed: 2026-07-17
-Status: Planned
+Status: Current
 Owner area: Web application / bridge consumer
 Tracking issue: [`aka_no_claw_web#12`](https://github.com/jojojen/aka_no_claw_web/issues/12)
 Backend plans:
@@ -697,14 +697,16 @@ Do not log:
 
 ## 24. Progress / Handoff Checklist
 
-Implementation has not started. First unchecked item: W1.1.
+Implementation is rolling out incrementally.  The reducer foundation and
+context-control slice shipped on 2026-07-17 while the legacy adapter remains
+the authority for existing stream/poll/action surfaces.
 
 ### W1 — reducer foundation
 
-- [ ] W1.1 define event DTO and payload guards from backend golden fixtures.
-- [ ] W1.2 implement pure session reducer and invariants.
-- [ ] W1.3 add complete lifecycle trace tests.
-- [ ] W1.4 model local ephemeral vs durable state explicitly.
+- [x] W1.1 define event DTO and payload guards from backend golden fixtures.
+- [x] W1.2 implement pure session reducer and invariants.
+- [x] W1.3 add complete lifecycle trace tests.
+- [x] W1.4 model local ephemeral vs durable state explicitly.
 
 ### W2 — shadow event runtime
 
@@ -743,9 +745,9 @@ Implementation has not started. First unchecked item: W1.1.
 
 ### W7 — context
 
-- [ ] W7.1 implement status/usage client.
-- [ ] W7.2 implement inspect/manual compact/clear summary UI.
-- [ ] W7.3 separate summary clear from full session clear.
+- [x] W7.1 implement status/usage client.
+- [x] W7.2 implement inspect/manual compact/clear summary UI.
+- [x] W7.3 separate summary clear from full session clear.
 
 ### W8 — cleanup/release
 

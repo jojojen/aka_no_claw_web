@@ -6,6 +6,7 @@ import type {
   CancelJobResponse,
   ChatSettings,
   ChatSettingsResponse,
+  ContextStatusResponse,
   CommandResponse,
   JobPollResponse,
   ModelRoutesResponse,
@@ -38,6 +39,7 @@ const IR_URL = "/api/command/ir";
 const WORKFLOW_URL = "/api/command/workflow";
 const APPROVAL_URL = "/api/command/approval";
 const QUEUE_URL = "/api/command/queue";
+const CONTEXT_URL = "/api/command/context";
 const SCHEDULE_URL = "/api/command/schedulehome";
 const SESSION_URL = "/api/command/session";
 const RESTART_ALL_URL = "/api/command/restartall";
@@ -384,6 +386,36 @@ export async function reorderPromptQueue(entries: QueuedPrompt[]): Promise<Promp
       }),
     });
     return (await res.json()) as PromptQueueResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+export async function getContextStatus(sessionId: string): Promise<ContextStatusResponse> {
+  try {
+    const res = await fetch(`${CONTEXT_URL}?session_id=${encodeURIComponent(sessionId)}`);
+    const data = (await res.json()) as ContextStatusResponse;
+    return res.ok ? data : { status: "error", message: data.message || `HTTP ${res.status}` };
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+export async function compactContext(sessionId: string): Promise<ContextStatusResponse> {
+  try {
+    const res = await fetch(`${CONTEXT_URL}/compact`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId }),
+    });
+    return (await res.json()) as ContextStatusResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+export async function clearContextCheckpoint(sessionId: string): Promise<ContextStatusResponse> {
+  try {
+    const res = await fetch(`${CONTEXT_URL}/checkpoint?session_id=${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+    return (await res.json()) as ContextStatusResponse;
   } catch (err) {
     return { status: "error", message: String(err) };
   }
