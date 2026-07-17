@@ -20,6 +20,7 @@ vi.mock("./session", async () => {
 
 vi.mock("./api/commandClient", () => ({
   loadSession: vi.fn(),
+  loadPendingApprovals: vi.fn().mockResolvedValue([]),
   saveSession: vi.fn().mockResolvedValue({ status: "ok" }),
   clearSession: vi.fn(),
   sendCommand: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock("./api/commandClient", () => ({
   runIrCommand: vi.fn(),
   runWorkflowCommand: vi.fn(),
   runWorkflowAction: vi.fn(),
+  resolveApproval: vi.fn(),
   runScheduleHomeCommand: vi.fn(),
   runScheduleHomeAction: vi.fn(),
   getNowPlaying: vi.fn().mockResolvedValue(null),
@@ -49,6 +51,7 @@ import * as client from "./api/commandClient";
 import { emptySnapshot } from "./session";
 
 const mockLoad = vi.mocked(client.loadSession);
+const mockLoadPendingApprovals = vi.mocked(client.loadPendingApprovals);
 const mockWorkflowCommand = vi.mocked(client.runWorkflowCommand);
 const mockWorkflowAction = vi.mocked(client.runWorkflowAction);
 const mockStream = vi.mocked(client.streamCommand);
@@ -92,6 +95,7 @@ function sendText(text: string) {
 beforeEach(() => {
   vi.mocked(client.saveSession).mockResolvedValue({ status: "ok" });
   mockLoad.mockResolvedValue(emptySession());
+  mockLoadPendingApprovals.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -99,6 +103,38 @@ afterEach(() => {
 });
 
 describe("App — workflow creation loop (web#8)", () => {
+  it("restores a pending approval card from the event journal", async () => {
+    mockLoadPendingApprovals.mockResolvedValue([{
+      approval_id: "approval-1",
+      session_id: "session-1",
+      run_id: "run-1",
+      decision_token: "opaque-token",
+      manifest_hash_prefix: "0123456789ab",
+      expires_at: Date.now() / 1000 + 60,
+      risk: "persistent_write",
+      action_kind: "generated_tool.execute",
+      tool_slug: "demo",
+      requested_capabilities: ["filesystem_write"],
+      network_scopes: [],
+      filesystem_scopes: ["tool_workspace"],
+      device_scopes: [],
+      status: "pending",
+    }]);
+
+    render(<App />);
+
+    expect((await screen.findByTestId("approval-card")).textContent).toContain("demo");
+    expect(screen.getByText(/檔案：tool_workspace/)).toBeTruthy();
+  });
+
+  it("warns explicitly when pending approvals cannot be restored", async () => {
+    mockLoadPendingApprovals.mockRejectedValueOnce(new Error("offline"));
+
+    render(<App />);
+
+    expect(await screen.findByText(/無法還原待核准動作/)).toBeTruthy();
+  });
+
   it("routes workflow creation redirect to runWorkflowCommand with create prefix", async () => {
     mockStream.mockImplementation(async (_req, onEvent) => {
       onEvent({ type: "redirect", intent: "create_workflow", description: "每天早上問候我，然後播放最愛音樂" });

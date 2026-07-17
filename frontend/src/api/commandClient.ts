@@ -1,5 +1,6 @@
 import type {
   ActionResponse,
+  ApprovalEventPage,
   ApprovalView,
   AsyncStartResponse,
   CancelJobResponse,
@@ -18,6 +19,7 @@ import type {
   WebCommandRequest,
 } from "../types/command";
 import { emptySnapshot } from "../session";
+import { getOrCreateSessionId } from "../session";
 import { envelopeVersionError } from "./envelope";
 
 const COMMAND_URL = "/api/command";
@@ -459,7 +461,11 @@ export async function runIrCommand(input: string): Promise<ActionResponse> {
 
 export async function runWorkflowCommand(input: string, chatBackend?: string): Promise<ActionResponse> {
   try {
-    const body = chatBackend ? { input, chat_backend: chatBackend } : { input };
+    const body = {
+      input,
+      session_id: getOrCreateSessionId(),
+      ...(chatBackend ? { chat_backend: chatBackend } : {}),
+    };
     const res = await fetch(WORKFLOW_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -485,16 +491,68 @@ export async function runWorkflowAction(callbackData: string): Promise<ActionRes
 }
 
 export async function resolveApproval(approval: ApprovalView, decision: "approve" | "reject"): Promise<ActionResponse> {
+  if (!approval.decision_token) {
+    return { status: "error", message: "核准憑證不存在或已失效。" };
+  }
   try {
     const res = await fetch(APPROVAL_URL, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ approval_id: approval.approval_id, session_id: approval.session_id,
-        run_id: approval.run_id, approval_token: approval.approval_token, decision }),
+        run_id: approval.run_id, decision_token: approval.decision_token, decision }),
     });
-    return (await res.json()) as ActionResponse;
+    const data = (await res.json()) as ActionResponse;
+    if (!res.ok) return { status: "error", message: data.message || `HTTP ${res.status}` };
+    if (data.approval && !isApprovalView(data.approval, false)) {
+      return { status: "error", message: "核准回覆格式無效。" };
+    }
+    return data;
   } catch (err) {
     return { status: "error", message: String(err) };
   }
+}
+
+function stringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isApprovalView(value: unknown, requireToken = true): value is ApprovalView {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.approval_id === "string" && typeof item.session_id === "string" &&
+    typeof item.run_id === "string" && typeof item.manifest_hash_prefix === "string" &&
+    typeof item.expires_at === "number" && typeof item.risk === "string" &&
+    typeof item.action_kind === "string" && typeof item.status === "string" &&
+    (!requireToken || typeof item.decision_token === "string") &&
+    stringArray(item.requested_capabilities) && stringArray(item.network_scopes) &&
+    stringArray(item.filesystem_scopes) && stringArray(item.device_scopes);
+}
+
+export async function loadPendingApprovals(sessionId: string): Promise<ApprovalView[]> {
+  const requested = new Map<string, ApprovalView>();
+  const resolved = new Set<string>();
+  let after: number | undefined;
+  for (let pageNumber = 0; pageNumber < 20; pageNumber += 1) {
+    const query = new URLSearchParams({ session_id: sessionId, limit: "500" });
+    if (after !== undefined) query.set("after", String(after));
+    const res = await fetch(`/api/command/events?${query.toString()}`);
+    const page = (await res.json()) as ApprovalEventPage;
+    if (!res.ok || page.status !== "ok" || !Array.isArray(page.events)) {
+      throw new Error(page.message || `HTTP ${res.status}`);
+    }
+    for (const event of page.events) {
+      if (event.type === "approval.requested" && isApprovalView(event.payload)) {
+        requested.set(event.payload.approval_id, event.payload);
+      } else if (event.type === "approval.resolved" && event.payload &&
+        typeof event.payload === "object" &&
+        typeof (event.payload as { approval_id?: unknown }).approval_id === "string") {
+        resolved.add((event.payload as { approval_id: string }).approval_id);
+      }
+    }
+    if (!page.has_more) break;
+    if (typeof page.server_cursor !== "number") throw new Error("核准事件 cursor 無效。")
+    after = page.server_cursor;
+  }
+  return [...requested.values()].filter((approval) => !resolved.has(approval.approval_id));
 }
 
 export async function runScheduleHomeCommand(input: string): Promise<ActionResponse> {

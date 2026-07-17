@@ -141,6 +141,21 @@ describe("toSnapshot — persist", () => {
     expect(st.mode).toBe("life");
     expect(st.messages).toHaveLength(1);
   });
+
+  it("does not persist approval bearer tokens in the legacy snapshot", () => {
+    const messages: Message[] = [{
+      id: "approval", role: "assistant", text: "pending", approvalResolved: false,
+      approval: {
+        approval_id: "a", session_id: "s", run_id: "r", decision_token: "secret-token",
+        manifest_hash_prefix: "abc", expires_at: 9999999999, risk: "persistent_write",
+        action_kind: "generated_tool.execute", requested_capabilities: [],
+        network_scopes: [], filesystem_scopes: [], device_scopes: [], status: "pending",
+      },
+    }];
+    const snap = toSnapshot({ ...base, messages });
+    expect(snap.messages[0].approval).toBeUndefined();
+    expect(snap.messages[0].approvalResolved).toBeUndefined();
+  });
 });
 
 describe("emptySnapshot", () => {

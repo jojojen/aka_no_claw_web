@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ActionButton, ApprovalView, CommandAction, Message } from "../types/command";
 import { FlatActionButton } from "./FlatActionButton";
 
@@ -62,6 +62,34 @@ export function MessageBubble({ message, onAction, onChatAction, onVoiceClarify,
     !message.generating && !message.directActionResolved && !chatActionsDisabled;
   const metaText = modelMetaText(message);
   const [processOpen, setProcessOpen] = useState(false);
+  const [destructiveArmed, setDestructiveArmed] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const approvalExpired = !!message.approval && now >= message.approval.expires_at * 1000;
+  const approvalResolved = !!message.approvalResolved ||
+    (!!message.approval && message.approval.status !== "pending");
+  useEffect(() => {
+    setDestructiveArmed(false);
+  }, [message.approval?.approval_id]);
+  useEffect(() => {
+    if (!message.approval || approvalResolved || approvalExpired) return;
+    const remaining = Math.max(0, message.approval.expires_at * 1000 - Date.now());
+    const timer = window.setTimeout(() => setNow(Date.now()), remaining + 25);
+    return () => window.clearTimeout(timer);
+  }, [message.approval, approvalExpired, approvalResolved]);
+
+  const approve = () => {
+    if (!message.approval) return;
+    if (message.approval.risk === "destructive" && !destructiveArmed) {
+      setDestructiveArmed(true);
+      return;
+    }
+    onApproval?.(message.id, message.approval, "approve");
+  };
+  const effectScopes = message.approval ? [
+    ...message.approval.network_scopes.map((scope) => `網路：${scope}`),
+    ...message.approval.filesystem_scopes.map((scope) => `檔案：${scope}`),
+    ...message.approval.device_scopes.map((scope) => `裝置：${scope}`),
+  ] : [];
 
   return (
     <div className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
@@ -118,10 +146,15 @@ export function MessageBubble({ message, onAction, onChatAction, onVoiceClarify,
       {message.approval && (
         <div data-testid="approval-card" className="mt-2 max-w-[85%] rounded border border-muted bg-muted/20 p-2 text-xs self-start">
           <p>需要核准：{message.approval.tool_slug ?? message.approval.action_kind}（{message.approval.risk}）</p>
+          {effectScopes.length > 0 && <p className="mt-1 text-text/70">{effectScopes.join(" · ")}</p>}
           <p className="text-text/60">到期：{new Date(message.approval.expires_at * 1000).toLocaleTimeString()}</p>
+          {approvalExpired && <p className="mt-1 text-red-600">核准已逾期，請重新執行。</p>}
+          {message.approval.resolution && <p className="mt-1">狀態：{message.approval.resolution}</p>}
           <div className="mt-2 flex gap-2">
-            <FlatActionButton variant="muted" disabled={!!message.approvalResolved || message.generating} onClick={() => onApproval?.(message.id, message.approval!, "approve")}>核准一次</FlatActionButton>
-            <FlatActionButton variant="muted" disabled={!!message.approvalResolved || message.generating} onClick={() => onApproval?.(message.id, message.approval!, "reject")}>拒絕</FlatActionButton>
+            <FlatActionButton variant="muted" disabled={approvalResolved || approvalExpired || message.generating} onClick={approve}>
+              {message.approval.risk === "destructive" && destructiveArmed ? "再按一次確認" : "核准一次"}
+            </FlatActionButton>
+            <FlatActionButton variant="muted" disabled={approvalResolved || approvalExpired || message.generating} onClick={() => onApproval?.(message.id, message.approval!, "reject")}>拒絕</FlatActionButton>
           </div>
         </div>
       )}

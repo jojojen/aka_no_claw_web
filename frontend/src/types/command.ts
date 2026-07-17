@@ -273,8 +273,8 @@ export type ApprovalView = {
   approval_id: string;
   session_id: string;
   run_id: string;
-  approval_token: string;
-  manifest_hash: string;
+  decision_token?: string;
+  manifest_hash_prefix: string;
   expires_at: number;
   risk: string;
   action_kind: string;
@@ -284,8 +284,23 @@ export type ApprovalView = {
   filesystem_scopes: string[];
   device_scopes: string[];
   status: string;
+  decision?: string;
   resolution?: string;
-  result_message?: string;
+  reason_code?: string;
+};
+
+export type ApprovalEventPage = {
+  status: "ok" | "error" | "cursor_expired";
+  events?: Array<{
+    event_id: string;
+    run_id: string;
+    seq: number;
+    type: string;
+    payload: unknown;
+  }>;
+  server_cursor?: number;
+  has_more?: boolean;
+  message?: string;
 };
 
 // POST /api/command/cancel — cooperative cancel of a running job (#81). The

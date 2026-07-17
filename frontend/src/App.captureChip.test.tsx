@@ -17,6 +17,7 @@ vi.mock("./session", async () => {
 
 vi.mock("./api/commandClient", () => ({
   loadSession: vi.fn(),
+  loadPendingApprovals: vi.fn().mockResolvedValue([]),
   saveSession: vi.fn().mockResolvedValue({ status: "ok" }),
   clearSession: vi.fn(),
   sendCommand: vi.fn(),

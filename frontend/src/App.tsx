@@ -20,6 +20,7 @@ import {
   clearSession,
   confirmVoiceAction,
   getChatSettings,
+  loadPendingApprovals,
   getModelRoutes,
   getNowPlaying,
   loadSession,
@@ -185,21 +186,47 @@ export default function App() {
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const res = await loadSession();
+      const sessionId = getOrCreateSessionId();
+      const [res, approvalRestore] = await Promise.all([
+        loadSession(),
+        loadPendingApprovals(sessionId)
+          .then((approvals) => ({ approvals, failed: false }))
+          .catch(() => ({ approvals: [] as ApprovalView[], failed: true })),
+      ]);
       if (!alive) return;
+      const pendingApprovals = approvalRestore.approvals;
       const st = fromSnapshot(res.session);
+      const restoredMessages = [...st.messages];
+      const knownApprovals = new Set(
+        restoredMessages.map((message) => message.approval?.approval_id).filter(Boolean),
+      );
+      for (const approval of pendingApprovals) {
+        if (knownApprovals.has(approval.approval_id)) continue;
+        restoredMessages.push({
+          id: `approval-${approval.approval_id}`,
+          role: "assistant",
+          text: "動態工具已暫停，等待一次性核准。",
+          modeLabel: MODE_LABELS.workflow,
+          status: "pending_approval",
+          jobId: WORKFLOW_JOB_ID,
+          approval,
+          approvalResolved: false,
+        });
+      }
       const explicitBackend =
         !!res.session &&
         typeof res.session === "object" &&
         typeof res.session.chat_backend === "string" &&
         res.session.chat_backend.length > 0;
-      setMessages(st.messages);
+      setMessages(restoredMessages);
       setMode(st.mode);
       setChatBackend(st.chatBackend);
       setRestoredChatBackendExplicit(explicitBackend);
       setInvestmentSubmode(st.investmentSubmode);
       if (res.status === "error") {
         setNotice("無法從本機還原工作階段，已開新對話。");
+      } else if (approvalRestore.failed) {
+        setNotice("無法還原待核准動作；為避免誤執行，請重新執行工作流。");
       }
       setRestored(true);
 
@@ -673,7 +700,7 @@ export default function App() {
           modeLabel: MODE_LABELS.workflow,
           actions: res.actions?.length ? res.actions : undefined,
           approval: res.approval,
-          approvalResolved: false,
+          approvalResolved: res.approval?.status !== "pending",
           jobId: WORKFLOW_JOB_ID,
           generating: false,
         });
@@ -715,6 +742,8 @@ export default function App() {
           status: res.status === "error" ? "error" : "ok",
           modeLabel: MODE_LABELS.workflow,
           actions: res.actions?.length ? res.actions : undefined,
+          approval: res.approval,
+          approvalResolved: res.approval?.status !== "pending",
           jobId: WORKFLOW_JOB_ID,
           generating: false,
         });
@@ -1371,9 +1400,19 @@ export default function App() {
   const onApproval = useCallback(async (messageId: string, approval: ApprovalView, decision: "approve" | "reject") => {
     patch(messageId, { generating: true, approvalResolved: true });
     const res = await resolveApproval(approval, decision);
+    if (res.status === "error") {
+      patch(messageId, {
+        text: res.message,
+        status: "error",
+        approval,
+        approvalResolved: false,
+        generating: false,
+      });
+      return;
+    }
     patch(messageId, {
       text: res.message,
-      status: res.status === "error" ? "error" : "ok",
+      status: "ok",
       approval: res.approval ?? approval,
       approvalResolved: true,
       generating: false,

@@ -27,7 +27,7 @@ export function ConversationStream({ messages, onAction, onChatAction, onVoiceCl
         <p className="m-auto text-sm text-text/40">在下方輸入訊息開始對話。</p>
       )}
       {messages.map((m) =>
-        m.role === "assistant" && m.status === "error" ? (
+        m.role === "assistant" && m.status === "error" && !m.approval ? (
           <ErrorMessage key={m.id} text={m.text} />
         ) : (
           <MessageBubble

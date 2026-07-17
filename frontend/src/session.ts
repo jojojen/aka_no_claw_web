@@ -131,7 +131,9 @@ export function toSnapshot(state: AppSessionState): SessionSnapshot {
     }
   }
   return {
-    messages: state.messages,
+    // Approval state is reconstructed from the authoritative event journal.
+    // Never copy its bearer token into the legacy snapshot store.
+    messages: state.messages.map(({ approval: _approval, approvalResolved: _resolved, ...message }) => message),
     mode: state.mode,
     chat_backend: state.chatBackend,
     investment_submode: state.investmentSubmode,

@@ -7,7 +7,9 @@ import {
   getModelRoutes,
   getNowPlaying,
   loadSession,
+  loadPendingApprovals,
   reportVoiceDirectRejection,
+  resolveApproval,
   restartAll,
   runBluetoothAction,
   runBluetoothScan,
@@ -669,7 +671,10 @@ describe("runWorkflowCommand", () => {
     });
     const res = await runWorkflowCommand("create 每天早上問候我");
     expect(seenUrl).toBe("/api/command/workflow");
-    expect(JSON.parse(seenBody)).toEqual({ input: "create 每天早上問候我" });
+    expect(JSON.parse(seenBody)).toEqual({
+      input: "create 每天早上問候我",
+      session_id: expect.any(String),
+    });
     expect(res.status).toBe("ok");
     expect(res.message).toContain("草稿");
   });
@@ -684,6 +689,7 @@ describe("runWorkflowCommand", () => {
     expect(JSON.parse(seenBody)).toEqual({
       input: "create 每天早上問候我",
       chat_backend: "gemini",
+      session_id: expect.any(String),
     });
   });
 
@@ -691,6 +697,46 @@ describe("runWorkflowCommand", () => {
     mockFetch(async () => { throw new Error("offline"); });
     const res = await runWorkflowCommand("create 每天早上問候我");
     expect(res.status).toBe("error");
+  });
+});
+
+describe("approval protocol", () => {
+  const approval = {
+    approval_id: "a1", session_id: "s1", run_id: "r1", decision_token: "token",
+    manifest_hash_prefix: "abc123", expires_at: 9999999999, risk: "persistent_write",
+    action_kind: "generated_tool.execute", tool_slug: "demo",
+    requested_capabilities: ["filesystem_write"], network_scopes: [],
+    filesystem_scopes: ["local_workspace"], device_scopes: [], status: "pending",
+  };
+
+  it("submits only the bound decision fields", async () => {
+    let seenBody = "";
+    mockFetch(async (_url, init) => {
+      seenBody = init?.body as string;
+      return jsonResponse({ status: "ok", message: "done", approval: { ...approval, status: "resolved" } });
+    });
+    const res = await resolveApproval(approval, "approve");
+    expect(JSON.parse(seenBody)).toEqual({
+      approval_id: "a1", session_id: "s1", run_id: "r1",
+      decision_token: "token", decision: "approve",
+    });
+    expect(res.status).toBe("ok");
+  });
+
+  it("rebuilds only unresolved approvals from paged events", async () => {
+    let calls = 0;
+    mockFetch(async () => {
+      calls += 1;
+      return jsonResponse({
+        status: "ok", server_cursor: calls, has_more: calls === 1,
+        events: calls === 1
+          ? [{ event_id: "e1", run_id: "r1", seq: 1, type: "approval.requested", payload: approval }]
+          : [{ event_id: "e2", run_id: "r2", seq: 2, type: "approval.requested", payload: { ...approval, approval_id: "a2", run_id: "r2" } },
+             { event_id: "e3", run_id: "r1", seq: 3, type: "approval.resolved", payload: { approval_id: "a1" } }],
+      });
+    });
+    const pending = await loadPendingApprovals("s1");
+    expect(pending.map((item) => item.approval_id)).toEqual(["a2"]);
   });
 });
 
