@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { CommandAction, Message } from "../types/command";
+import type { ApprovalView, CommandAction, Message } from "../types/command";
 import { MessageBubble } from "./MessageBubble";
 import type { VoiceClarifySelection } from "./MessageBubble";
 import { ErrorMessage } from "./ErrorMessage";
@@ -11,9 +11,10 @@ type Props = {
   onVoiceClarify?: (messageId: string, selection: VoiceClarifySelection) => void;
   onVoiceDirectReject?: (messageId: string) => void;
   chatActionsDisabled?: boolean;
+  onApproval?: (messageId: string, approval: ApprovalView, decision: "approve" | "reject") => void;
 };
 
-export function ConversationStream({ messages, onAction, onChatAction, onVoiceClarify, onVoiceDirectReject, chatActionsDisabled }: Props) {
+export function ConversationStream({ messages, onAction, onChatAction, onVoiceClarify, onVoiceDirectReject, chatActionsDisabled, onApproval }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,6 +38,7 @@ export function ConversationStream({ messages, onAction, onChatAction, onVoiceCl
             onVoiceClarify={onVoiceClarify}
             onVoiceDirectReject={onVoiceDirectReject}
             chatActionsDisabled={chatActionsDisabled}
+            onApproval={onApproval}
           />
         ),
       )}

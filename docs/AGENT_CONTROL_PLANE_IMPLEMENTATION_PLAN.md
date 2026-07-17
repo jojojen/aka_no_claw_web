@@ -736,8 +736,8 @@ Implementation has not started. First unchecked item: W1.1.
 
 ### W6 — approval
 
-- [ ] W6.1 implement approval payload guard/controller.
-- [ ] W6.2 render safe effect summary and actions.
+- [x] W6.1 implement approval payload guard/controller.
+- [x] W6.2 render safe effect summary and actions.
 - [ ] W6.3 add reconnect/double-submit/expiry/mismatch tests.
 - [ ] W6.4 add stronger destructive confirmation interaction.
 

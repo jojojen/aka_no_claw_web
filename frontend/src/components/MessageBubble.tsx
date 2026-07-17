@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ActionButton, CommandAction, Message } from "../types/command";
+import type { ActionButton, ApprovalView, CommandAction, Message } from "../types/command";
 import { FlatActionButton } from "./FlatActionButton";
 
 function groupByRow(actions: ActionButton[]): ActionButton[][] {
@@ -38,9 +38,10 @@ type Props = {
   onVoiceClarify?: (messageId: string, selection: VoiceClarifySelection) => void;
   onVoiceDirectReject?: (messageId: string) => void;
   chatActionsDisabled?: boolean;
+  onApproval?: (messageId: string, approval: ApprovalView, decision: "approve" | "reject") => void;
 };
 
-export function MessageBubble({ message, onAction, onChatAction, onVoiceClarify, onVoiceDirectReject, chatActionsDisabled }: Props) {
+export function MessageBubble({ message, onAction, onChatAction, onVoiceClarify, onVoiceDirectReject, chatActionsDisabled, onApproval }: Props) {
   const isUser = message.role === "user";
   const base = "max-w-[85%] whitespace-pre-wrap break-words rounded px-3 py-2 text-sm leading-relaxed";
   const tone = isUser
@@ -112,6 +113,16 @@ export function MessageBubble({ message, onAction, onChatAction, onVoiceClarify,
               ))}
             </div>
           ))}
+        </div>
+      )}
+      {message.approval && (
+        <div data-testid="approval-card" className="mt-2 max-w-[85%] rounded border border-muted bg-muted/20 p-2 text-xs self-start">
+          <p>需要核准：{message.approval.tool_slug ?? message.approval.action_kind}（{message.approval.risk}）</p>
+          <p className="text-text/60">到期：{new Date(message.approval.expires_at * 1000).toLocaleTimeString()}</p>
+          <div className="mt-2 flex gap-2">
+            <FlatActionButton variant="muted" disabled={!!message.approvalResolved || message.generating} onClick={() => onApproval?.(message.id, message.approval!, "approve")}>核准一次</FlatActionButton>
+            <FlatActionButton variant="muted" disabled={!!message.approvalResolved || message.generating} onClick={() => onApproval?.(message.id, message.approval!, "reject")}>拒絕</FlatActionButton>
+          </div>
         </div>
       )}
       {chatActions.length > 0 && (

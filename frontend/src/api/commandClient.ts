@@ -1,5 +1,6 @@
 import type {
   ActionResponse,
+  ApprovalView,
   AsyncStartResponse,
   CancelJobResponse,
   ChatSettings,
@@ -30,6 +31,7 @@ const NOW_PLAYING_URL = "/api/command/music/now";
 const BLUETOOTH_URL = "/api/command/bluetooth";
 const IR_URL = "/api/command/ir";
 const WORKFLOW_URL = "/api/command/workflow";
+const APPROVAL_URL = "/api/command/approval";
 const SCHEDULE_URL = "/api/command/schedulehome";
 const SESSION_URL = "/api/command/session";
 const RESTART_ALL_URL = "/api/command/restartall";
@@ -475,6 +477,19 @@ export async function runWorkflowAction(callbackData: string): Promise<ActionRes
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ callback_data: callbackData }),
+    });
+    return (await res.json()) as ActionResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+export async function resolveApproval(approval: ApprovalView, decision: "approve" | "reject"): Promise<ActionResponse> {
+  try {
+    const res = await fetch(APPROVAL_URL, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approval_id: approval.approval_id, session_id: approval.session_id,
+        run_id: approval.run_id, approval_token: approval.approval_token, decision }),
     });
     return (await res.json()) as ActionResponse;
   } catch (err) {

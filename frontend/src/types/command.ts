@@ -57,7 +57,7 @@ export type WebCommandRequest = {
   voice?: VoiceRequestMetadata;
 };
 
-export type ResponseStatus = "ok" | "partial" | "error" | "unsupported";
+export type ResponseStatus = "ok" | "partial" | "error" | "unsupported" | "pending_approval";
 
 export type CommandAction = {
   label: string;
@@ -266,6 +266,26 @@ export type ActionResponse = {
   status: ResponseStatus;
   message: string;
   actions?: ActionButton[];
+  approval?: ApprovalView;
+};
+
+export type ApprovalView = {
+  approval_id: string;
+  session_id: string;
+  run_id: string;
+  approval_token: string;
+  manifest_hash: string;
+  expires_at: number;
+  risk: string;
+  action_kind: string;
+  tool_slug?: string;
+  requested_capabilities: string[];
+  network_scopes: string[];
+  filesystem_scopes: string[];
+  device_scopes: string[];
+  status: string;
+  resolution?: string;
+  result_message?: string;
 };
 
 // POST /api/command/cancel — cooperative cancel of a running job (#81). The
@@ -347,4 +367,6 @@ export type Message = {
   // negative-feedback button. In-session only, like clarification.
   directAction?: VoiceDirectAction;
   directActionResolved?: boolean;
+  approval?: ApprovalView;
+  approvalResolved?: boolean;
 };

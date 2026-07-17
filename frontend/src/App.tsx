@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   Attachment,
+  ApprovalView,
   ChatBackend,
   ChatSettings,
   ChatHistoryItem,
@@ -38,6 +39,7 @@ import {
   sendCommand,
   startAsyncCommand,
   reportVoiceDirectRejection,
+  resolveApproval,
   restartAll,
   streamCommand,
   transcribeAudio,
@@ -670,6 +672,8 @@ export default function App() {
           status: res.status === "error" ? "error" : "ok",
           modeLabel: MODE_LABELS.workflow,
           actions: res.actions?.length ? res.actions : undefined,
+          approval: res.approval,
+          approvalResolved: false,
           jobId: WORKFLOW_JOB_ID,
           generating: false,
         });
@@ -1364,6 +1368,18 @@ export default function App() {
     [patch, runLifeCard, runWorkflowCard, runWorkflowResultCard, runScheduleCard],
   );
 
+  const onApproval = useCallback(async (messageId: string, approval: ApprovalView, decision: "approve" | "reject") => {
+    patch(messageId, { generating: true, approvalResolved: true });
+    const res = await resolveApproval(approval, decision);
+    patch(messageId, {
+      text: res.message,
+      status: res.status === "error" ? "error" : "ok",
+      approval: res.approval ?? approval,
+      approvalResolved: true,
+      generating: false,
+    });
+  }, [patch]);
+
   return (
     <div className="mx-auto flex h-full max-w-content flex-col bg-surface">
       <header className="flex items-center gap-2 border-b border-muted px-4 py-3">
@@ -1513,6 +1529,7 @@ export default function App() {
         onChatAction={onChatAction}
         onVoiceClarify={onVoiceClarify}
         onVoiceDirectReject={onVoiceDirectReject}
+        onApproval={onApproval}
         chatActionsDisabled={generating}
       />
 
