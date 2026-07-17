@@ -9,6 +9,9 @@ import type {
   CommandResponse,
   JobPollResponse,
   ModelRoutesResponse,
+  PromptIntent,
+  PromptQueueResponse,
+  QueuedPrompt,
   RestartAllResponse,
   SessionClearResponse,
   SessionLoadResponse,
@@ -34,6 +37,7 @@ const BLUETOOTH_URL = "/api/command/bluetooth";
 const IR_URL = "/api/command/ir";
 const WORKFLOW_URL = "/api/command/workflow";
 const APPROVAL_URL = "/api/command/approval";
+const QUEUE_URL = "/api/command/queue";
 const SCHEDULE_URL = "/api/command/schedulehome";
 const SESSION_URL = "/api/command/session";
 const RESTART_ALL_URL = "/api/command/restartall";
@@ -317,6 +321,69 @@ export async function cancelJob(jobId: string): Promise<CancelJobResponse> {
     } catch {
       return { status: "error", message: `HTTP ${res.status}` };
     }
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+export async function loadPromptQueue(sessionId: string): Promise<PromptQueueResponse> {
+  try {
+    const res = await fetch(`${QUEUE_URL}?session_id=${encodeURIComponent(sessionId)}`);
+    return (await res.json()) as PromptQueueResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+export async function createPromptQueueEntry(
+  request: WebCommandRequest,
+  intent: PromptIntent = "next_turn",
+): Promise<PromptQueueResponse> {
+  try {
+    const res = await fetch(QUEUE_URL, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ request, intent }),
+    });
+    return (await res.json()) as PromptQueueResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+export async function cancelPromptQueueEntry(entry: QueuedPrompt): Promise<PromptQueueResponse> {
+  try {
+    const params = new URLSearchParams({ session_id: entry.session_id, expected_version: String(entry.version) });
+    const res = await fetch(`${QUEUE_URL}/${encodeURIComponent(entry.prompt_id)}?${params}`, { method: "DELETE" });
+    return (await res.json()) as PromptQueueResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+export async function editPromptQueueEntry(entry: QueuedPrompt, text: string): Promise<PromptQueueResponse> {
+  try {
+    const res = await fetch(`${QUEUE_URL}/${encodeURIComponent(entry.prompt_id)}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: entry.session_id, expected_version: entry.version, text }),
+    });
+    return (await res.json()) as PromptQueueResponse;
+  } catch (err) {
+    return { status: "error", message: String(err) };
+  }
+}
+
+export async function reorderPromptQueue(entries: QueuedPrompt[]): Promise<PromptQueueResponse> {
+  if (!entries.length) return { status: "ok", entries: [] };
+  try {
+    const res = await fetch(`${QUEUE_URL}/reorder`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: entries[0].session_id,
+        prompt_ids: entries.map((entry) => entry.prompt_id),
+        expected_versions: Object.fromEntries(entries.map((entry) => [entry.prompt_id, entry.version])),
+      }),
+    });
+    return (await res.json()) as PromptQueueResponse;
   } catch (err) {
     return { status: "error", message: String(err) };
   }

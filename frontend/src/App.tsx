@@ -12,17 +12,21 @@ import type {
   SessionSnapshot,
   Submode,
   VisionRoute,
+  QueuedPrompt,
   VoiceRequestMetadata,
   WebCommandRequest,
 } from "./types/command";
 import {
   cancelJob,
+  cancelPromptQueueEntry,
   clearSession,
   confirmVoiceAction,
   getChatSettings,
   loadPendingApprovals,
   getModelRoutes,
   getNowPlaying,
+  createPromptQueueEntry,
+  editPromptQueueEntry,
   loadSession,
   pollJob,
   runAction,
@@ -42,9 +46,11 @@ import {
   reportVoiceDirectRejection,
   resolveApproval,
   restartAll,
+  reorderPromptQueue,
   streamCommand,
   transcribeAudio,
 } from "./api/commandClient";
+import * as queueClient from "./api/commandClient";
 import type { ActionResponse } from "./types/command";
 import {
   buildChatHistory,
@@ -63,9 +69,18 @@ import type { VoiceClarifySelection } from "./components/MessageBubble";
 import { InputBar } from "./components/InputBar";
 import { CaptureModeChip } from "./components/CaptureModeChip";
 import { ChatSettingsModal } from "./components/ChatSettingsModal";
+import { PromptQueueStrip } from "./components/PromptQueueStrip";
 import type { LifeCategory } from "./components/LifeActionPanel";
 
 const SOURCE = "aka_no_claw_web";
+
+async function restorePromptQueue(sessionId: string) {
+  // Older Web test fixtures and a rolling backend deployment may not expose
+  // the queue client yet. Treat that exactly like a disabled feature, never a
+  // failed session restore.
+  if (!("loadPromptQueue" in queueClient)) return { status: "disabled" as const, entries: [] as QueuedPrompt[] };
+  return queueClient.loadPromptQueue(sessionId);
+}
 
 // Sentinel jobIds marking 生活-mode and workflow cards, so their action buttons
 // stay enabled and route back through the dedicated endpoints (not the research
@@ -131,6 +146,7 @@ export default function App() {
     useState<Submode>("deep_product_research");
   const [messages, setMessages] = useState<Message[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
   const [restored, setRestored] = useState(false);
   const [restoredChatBackendExplicit, setRestoredChatBackendExplicit] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -187,14 +203,16 @@ export default function App() {
     let alive = true;
     void (async () => {
       const sessionId = getOrCreateSessionId();
-      const [res, approvalRestore] = await Promise.all([
+      const [res, approvalRestore, queueRestore] = await Promise.all([
         loadSession(),
         loadPendingApprovals(sessionId)
           .then((approvals) => ({ approvals, failed: false }))
           .catch(() => ({ approvals: [] as ApprovalView[], failed: true })),
+        restorePromptQueue(sessionId).catch(() => ({ status: "error" as const, entries: [] as QueuedPrompt[] })),
       ]);
       if (!alive) return;
       const pendingApprovals = approvalRestore.approvals;
+      setQueuedPrompts(queueRestore.status === "ok" ? queueRestore.entries ?? [] : []);
       const st = fromSnapshot(res.session);
       const restoredMessages = [...st.messages];
       const knownApprovals = new Set(
@@ -1036,6 +1054,74 @@ export default function App() {
     [generating, mode, lifeCategory, chatBackend, investmentSubmode, workflowActive, scheduleActive, messages, buildRequest, stagedFile, patch, runStreaming, runPolling, runBlocking, runLifeCard, runWorkflowCard, runScheduleCard],
   );
 
+  const onQueuePrompt = useCallback(
+    async (text: string, intent: "next_turn" | "interjection" = "next_turn") => {
+      if (workflowActive || scheduleActive) {
+        setNotice("編輯器輸入不會加入一般待送出佇列。請先完成或取消編輯。 ");
+        return;
+      }
+      const lifeRoutesToChat = mode === "life" && lifeCategory !== "music";
+      const chatLikeMode = mode === "chat" || lifeRoutesToChat;
+      if (mode === "life" && !lifeRoutesToChat) {
+        setNotice("生活控制目前不能排隊；請等目前操作完成。 ");
+        return;
+      }
+      const history = chatLikeMode ? buildChatHistory(messages) : [];
+      const req: WebCommandRequest = chatLikeMode
+        ? {
+            mode: "chat", submode: null, input: text, chat_backend: chatBackend,
+            attachments: [], source: SOURCE, history,
+            session_id: getOrCreateSessionId(), conversation_id: CONVERSATION_ID,
+          }
+        : { ...buildRequest(text, history), session_id: getOrCreateSessionId(), conversation_id: CONVERSATION_ID };
+      const result = await createPromptQueueEntry(req, intent);
+      if (result.status !== "ok") {
+        setNotice(result.message ?? "無法加入待送出佇列。 ");
+        return;
+      }
+      setQueuedPrompts(result.entries ?? []);
+    },
+    [workflowActive, scheduleActive, mode, lifeCategory, messages, chatBackend, buildRequest],
+  );
+
+  const onInterjectPrompt = useCallback((text: string) => {
+    void onQueuePrompt(text, "interjection");
+  }, [onQueuePrompt]);
+
+  const onCancelQueuedPrompt = useCallback(async (entry: QueuedPrompt) => {
+    const result = await cancelPromptQueueEntry(entry);
+    if (result.status !== "ok") {
+      setNotice(result.message ?? "取消待送出訊息失敗。 ");
+      return;
+    }
+    setQueuedPrompts(result.entries ?? []);
+  }, []);
+
+  const onEditQueuedPrompt = useCallback(async (entry: QueuedPrompt, text: string) => {
+    const result = await editPromptQueueEntry(entry, text);
+    if (result.status !== "ok") {
+      setNotice(result.message ?? "編輯待送出訊息失敗。 ");
+      return;
+    }
+    setQueuedPrompts(result.entries ?? []);
+  }, []);
+
+  const onMoveQueuedPrompt = useCallback(async (promptId: string, direction: -1 | 1) => {
+    const index = queuedPrompts.findIndex((entry) => entry.prompt_id === promptId);
+    const next = index + direction;
+    if (index < 0 || next < 0 || next >= queuedPrompts.length) return;
+    const reordered = [...queuedPrompts];
+    [reordered[index], reordered[next]] = [reordered[next], reordered[index]];
+    const result = await reorderPromptQueue(reordered);
+    if (result.status !== "ok") {
+      setNotice(result.message ?? "調整待送出順序失敗，已重新載入。 ");
+      const refreshed = await restorePromptQueue(getOrCreateSessionId());
+      setQueuedPrompts(refreshed.entries ?? []);
+      return;
+    }
+    setQueuedPrompts(result.entries ?? []);
+  }, [queuedPrompts]);
+
   const onTranscribe = useCallback(
     async (audio: Blob, durationMs: number) => {
       const res = await transcribeAudio(audio);
@@ -1598,11 +1684,20 @@ export default function App() {
       {scheduleActive && (
         <CaptureModeChip mode="schedule" onExit={onExitSchedule} />
       )}
+      <PromptQueueStrip
+        entries={queuedPrompts}
+        onCancel={onCancelQueuedPrompt}
+        onEdit={onEditQueuedPrompt}
+        onMove={onMoveQueuedPrompt}
+      />
       <InputBar
         placeholder={placeholder}
         mode={mode}
         generating={generating}
         onSend={onSend}
+        onQueue={onQueuePrompt}
+        onInterject={onInterjectPrompt}
+        queueAllowed={!workflowActive && !scheduleActive}
         onStop={onStop}
         onSelectImage={onSelectImage}
         onTranscribe={onTranscribe}

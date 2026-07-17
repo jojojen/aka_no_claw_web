@@ -9,6 +9,9 @@ type Props = {
   mode: Mode;
   generating: boolean;
   onSend: (text: string) => void;
+  onQueue?: (text: string) => void;
+  onInterject?: (text: string) => void;
+  queueAllowed?: boolean;
   onStop: () => void;
   onSelectImage: (file: File) => void;
   // durationMs is measured by the recorder (aka_no_claw#82): the backend's
@@ -24,6 +27,9 @@ export function InputBar({
   mode,
   generating,
   onSend,
+  onQueue = onSend,
+  onInterject,
+  queueAllowed = true,
   onStop,
   onSelectImage,
   onTranscribe,
@@ -44,8 +50,13 @@ export function InputBar({
   useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    // Clear any previous multi-line height first. The CSS min-h-11 is the
+    // single-line source of truth, so an empty or one-line composer stays
+    // exactly aligned with the neighbouring 44px controls.
+    el.style.height = "";
+    if (el.scrollHeight > el.offsetHeight) {
+      el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    }
   }, [value]);
 
   const releaseMicrophone = () => {
@@ -151,10 +162,12 @@ export function InputBar({
     void startRecording();
   };
 
-  const submit = () => {
+  const submit = (intent: "next_turn" | "interjection" = "next_turn") => {
     const text = value.trim();
-    if (!text) return;
-    onSend(text);
+    if (!text || (generating && !queueAllowed)) return;
+    if (generating && intent === "interjection" && onInterject) onInterject(text);
+    else if (generating) onQueue(text);
+    else onSend(text);
     setValue("");
   };
 
@@ -167,7 +180,7 @@ export function InputBar({
 
   return (
     <div className="border-t border-muted bg-surface p-3">
-      <div className="flex items-end gap-2">
+      <div className="flex flex-wrap items-end gap-2 sm:flex-nowrap">
         <div
           data-testid="input-accessories"
           className={`${inputFocused ? "hidden sm:flex" : "flex"} shrink-0 items-end gap-2`}
@@ -244,17 +257,24 @@ export function InputBar({
             if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
             blurTimerRef.current = setTimeout(() => setInputFocused(false), 0);
           }}
-          className="max-h-40 min-h-11 flex-1 resize-none overflow-y-auto rounded border border-muted bg-white px-3 py-2 text-base leading-6 outline-none focus:border-primary"
+          className="min-w-40 max-h-40 min-h-11 flex-1 resize-none overflow-y-auto rounded border border-muted bg-white px-3 py-2 text-base leading-6 outline-none focus:border-primary sm:min-w-0"
         />
-        {generating ? (
-          <FlatActionButton variant="muted" className="h-11 shrink-0" onClick={onStop}>
-            停止
-          </FlatActionButton>
-        ) : (
-          <FlatActionButton variant="primary" className="h-11 shrink-0" onClick={submit}>
-            送出
-          </FlatActionButton>
-        )}
+        <div
+          data-testid="input-actions"
+          className={`flex shrink-0 items-end gap-2 ${generating ? "max-sm:w-full max-sm:justify-between" : ""}`}
+        >
+          {generating ? (
+            <>
+              <FlatActionButton variant="muted" className="h-11 shrink-0 max-sm:flex-1" onClick={onStop}>停止</FlatActionButton>
+              {onInterject && <FlatActionButton variant="muted" className="h-11 shrink-0 max-sm:flex-1" onClick={() => submit("interjection")}>補充</FlatActionButton>}
+              <FlatActionButton variant="primary" className="h-11 shrink-0 max-sm:flex-1" onClick={() => submit("next_turn")}>排隊</FlatActionButton>
+            </>
+          ) : (
+            <FlatActionButton variant="primary" className="h-11 shrink-0" onClick={() => submit()}>
+              送出
+            </FlatActionButton>
+          )}
+        </div>
       </div>
       {recording && (
         <p role="status" className="mt-2 text-xs text-red-700">錄音中，再按一次停止並轉成文字。</p>

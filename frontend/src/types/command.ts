@@ -303,6 +303,33 @@ export type ApprovalEventPage = {
   message?: string;
 };
 
+export type PromptIntent = "next_turn" | "interjection";
+export type QueuedPrompt = {
+  prompt_id: string;
+  session_id: string;
+  version: number;
+  position: number;
+  intent: PromptIntent;
+  mode: Mode;
+  capture_context?: string | null;
+  text: string;
+  created_at: number;
+  updated_at: number;
+  expires_at: number;
+  status: "queued" | "draining";
+  target_run_id?: string | null;
+  started_run_id?: string | null;
+};
+
+export type PromptQueueResponse = {
+  status: "ok" | "error" | "conflict" | "capacity" | "disabled";
+  message?: string;
+  session_id?: string;
+  running_prompt_id?: string | null;
+  entries?: QueuedPrompt[];
+  entry?: QueuedPrompt;
+};
+
 // POST /api/command/cancel — cooperative cancel of a running job (#81). The
 // bridge only signals running jobs; a finished job reports its real terminal
 // state instead of pretending it was cancelled.

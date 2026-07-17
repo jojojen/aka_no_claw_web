@@ -189,6 +189,37 @@ describe("InputBar", () => {
     expect((screen.getByRole("button", { name: "開始語音輸入" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("queues a busy-session message and sends an explicit goal-loop interjection", () => {
+    const onQueue = vi.fn();
+    const onInterject = vi.fn();
+    render(
+      <InputBar
+        placeholder="輸入訊息..."
+        mode="chat"
+        generating
+        onSend={vi.fn()}
+        onQueue={onQueue}
+        onInterject={onInterject}
+        onStop={vi.fn()}
+        onSelectImage={vi.fn()}
+        onTranscribe={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    const textarea = screen.getByPlaceholderText("輸入訊息...");
+    fireEvent.change(textarea, { target: { value: "下一輪再處理" } });
+    fireEvent.click(screen.getByText("排隊"));
+    expect(onQueue).toHaveBeenCalledWith("下一輪再處理");
+
+    fireEvent.change(textarea, { target: { value: "優先檢查權限" } });
+    fireEvent.click(screen.getByText("補充"));
+    expect(onInterject).toHaveBeenCalledWith("優先檢查權限");
+
+    const textareaClasses = textarea.className.split(/\s+/);
+    expect(textareaClasses).toEqual(expect.arrayContaining(["min-w-40", "sm:min-w-0"]));
+    expect(screen.getByTestId("input-actions").className).toContain("max-sm:w-full");
+  });
+
   it("aligns all controls at the 44px baseline while letting the textarea grow", () => {
     renderInputBar();
 
@@ -205,6 +236,19 @@ describe("InputBar", () => {
     const textareaClasses = (screen.getByRole("textbox") as HTMLTextAreaElement).className.split(/\s+/);
     expect(textareaClasses).toEqual(expect.arrayContaining(["min-h-11", "max-h-40"]));
     expect(textareaClasses).not.toContain("h-11");
+  });
+
+  it("keeps a one-line composer at the control baseline and grows only after wrapping", () => {
+    const { textarea } = renderInputBar();
+    Object.defineProperty(textarea, "offsetHeight", { value: 44, configurable: true });
+    Object.defineProperty(textarea, "scrollHeight", { value: 44, configurable: true });
+
+    fireEvent.change(textarea, { target: { value: "單行文字" } });
+    expect(textarea.style.height).toBe("");
+
+    Object.defineProperty(textarea, "scrollHeight", { value: 92, configurable: true });
+    fireEvent.change(textarea, { target: { value: "第一行\n第二行" } });
+    expect(textarea.style.height).toBe("92px");
   });
 
   it("renders the image picker as an accessible paperclip icon for images only", () => {
