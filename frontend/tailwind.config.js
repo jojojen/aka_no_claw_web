@@ -11,6 +11,10 @@ export default {
         mutedHover: "#d1d1d1",
         primary: "#666b7a",
         accent: "#39d1b4",
+        confirm: "#087f76",
+        confirmHover: "#06655f",
+        danger: "#b4232d",
+        dangerHover: "#8f1d27",
       },
       borderRadius: {
         DEFAULT: "5px",

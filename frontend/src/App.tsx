@@ -1634,13 +1634,13 @@ export default function App() {
                 <span className="whitespace-nowrap text-text/70">清除記憶？</span>
                 <button
                   onClick={onClearMemory}
-                  className="whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                  className="whitespace-nowrap rounded bg-danger px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-dangerHover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
                 >
                   確定清除
                 </button>
                 <button
                   onClick={() => setConfirmClear(false)}
-                  className="whitespace-nowrap rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+                  className="whitespace-nowrap rounded bg-muted px-2 py-1 text-xs font-medium text-text transition-colors hover:bg-mutedHover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   取消
                 </button>
@@ -1663,13 +1663,13 @@ export default function App() {
                 <span className="whitespace-nowrap text-text/70">重啟龍蝦？</span>
                 <button
                   onClick={onRestartAll}
-                  className="whitespace-nowrap rounded bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700"
+                  className="whitespace-nowrap rounded bg-confirm px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-confirmHover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-confirm"
                 >
                   確定重啟
                 </button>
                 <button
                   onClick={() => setConfirmRestart(false)}
-                  className="whitespace-nowrap rounded bg-muted px-2 py-1 text-xs font-medium text-text hover:bg-mutedHover"
+                  className="whitespace-nowrap rounded bg-muted px-2 py-1 text-xs font-medium text-text transition-colors hover:bg-mutedHover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   取消
                 </button>
