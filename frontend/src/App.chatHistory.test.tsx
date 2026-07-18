@@ -105,7 +105,7 @@ describe("App — chat continuity (#44)", () => {
     ]);
     expect(secondReq.session_id).toBeTruthy();
     expect(secondReq.session_id).toBe(firstReq.session_id);
-    expect(secondReq.conversation_id).toBe("default");
+    expect(secondReq.conversation_id).toBeUndefined();
   });
 
   it("non-chat modes do not send chat history", async () => {

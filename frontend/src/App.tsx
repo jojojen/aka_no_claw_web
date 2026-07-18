@@ -60,7 +60,6 @@ import * as contextClient from "./api/commandClient";
 import type { ActionResponse } from "./types/command";
 import {
   buildChatHistory,
-  CONVERSATION_ID,
   debounce,
   fromSnapshot,
   getOrCreateSessionId,
@@ -453,7 +452,6 @@ export default function App() {
           source: SOURCE,
           history,
           session_id: getOrCreateSessionId(),
-          conversation_id: CONVERSATION_ID,
         };
       }
       if (mode === "translation") {
@@ -1102,7 +1100,6 @@ export default function App() {
             source: SOURCE,
             history,
             session_id: getOrCreateSessionId(),
-            conversation_id: CONVERSATION_ID,
             // Voice provenance (#82): lets the bridge's voice-intent gate
             // clarify a short misrecognized control utterance before /search.
             ...(voiceMeta
@@ -1153,9 +1150,9 @@ export default function App() {
         ? {
             mode: "chat", submode: null, input: text, chat_backend: chatBackend,
             attachments: [], source: SOURCE, history,
-            session_id: getOrCreateSessionId(), conversation_id: CONVERSATION_ID,
+            session_id: getOrCreateSessionId(),
           }
-        : { ...buildRequest(text, history), session_id: getOrCreateSessionId(), conversation_id: CONVERSATION_ID };
+        : { ...buildRequest(text, history), session_id: getOrCreateSessionId() };
       const result = await createPromptQueueEntry(req, intent);
       if (result.status !== "ok") {
         setNotice(result.message ?? "無法加入待送出佇列。 ");
@@ -1341,7 +1338,6 @@ export default function App() {
         source: SOURCE,
         history,
         session_id: getOrCreateSessionId(),
-        conversation_id: CONVERSATION_ID,
       };
       void runStreaming(req, assistantId);
     },

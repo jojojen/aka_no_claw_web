@@ -17,10 +17,9 @@ import type {
   Submode,
 } from "./types/command";
 
-// Stable per-browser ids for chat continuity (#44). The session id survives
-// reloads via localStorage; conversation id is a single rolling thread for now.
+// Stable per-browser id for chat continuity (#44). It survives reloads via
+// localStorage and is the sole identity for server-side conversation state.
 const SESSION_ID_KEY = "akanoclaw.web.session_id";
-export const CONVERSATION_ID = "default";
 // Only chat bubbles carry this label; history must never leak other modes.
 const CHAT_MODE_LABEL = "Chat";
 const DEFAULT_HISTORY_TURNS = 20;
